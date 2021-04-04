@@ -467,7 +467,7 @@ fn main() {
     let mut ctx = MyContext {
         output_image: image::ImageBuffer::new(width, height),
         accumulation_buffer: vec![Color::new(0., 0., 0.); (width * height) as usize],
-        spp: 4,
+        spp: 8,
         max_depth: 8,
         materials: Vec::new(),
     };
@@ -487,6 +487,17 @@ fn main() {
         0,
     )));
 
+    for _ in 0..20 {
+        scene.add_hittable(Box::new(Sphere::new(
+            rand_range(0.5, 1.25),
+            &Position::new(
+                rand_range(-10., 10.),
+                rand_range(1., 5.),
+                rand_range(-10., 10.),
+            ),
+            1,
+        )));
+    }
     scene.add_hittable(Box::new(Sphere::new(1., &Position::new(0., 1., 0.), 1)));
     let tracer = CPUTracer::new(Box::new(RayGenerator {
         camera: camera,
