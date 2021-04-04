@@ -108,7 +108,7 @@ pub trait Material {
 }
 
 pub trait Texture {
-    fn sample(&self, uv: &TextureCoordinate) -> Color;
+    fn sample(&self, uv: &TextureCoordinate, position: &Position) -> Color;
 }
 
 pub struct SolidColorTexture {
@@ -122,8 +122,30 @@ impl SolidColorTexture {
 }
 
 impl Texture for SolidColorTexture {
-    fn sample(&self, _: &TextureCoordinate) -> Color {
+    fn sample(&self, _: &TextureCoordinate, _: &Position) -> Color {
         self.color
+    }
+}
+
+pub struct CheckerTexture {
+    even: Box<dyn Texture>,
+    odd: Box<dyn Texture>,
+}
+
+impl CheckerTexture {
+    fn new(even: Box<dyn Texture>, odd: Box<dyn Texture>) -> Self {
+        Self { even, odd }
+    }
+}
+
+impl Texture for CheckerTexture {
+    fn sample(&self, uv: &TextureCoordinate, position: &Position) -> Color {
+        let sines = sin(position.x * 10.) * sin(position.y * 10.) * sin(position.z * 10.);
+        if sines < 0. {
+            self.odd.sample(uv, position)
+        } else {
+            self.even.sample(uv, position)
+        }
     }
 }
 
@@ -140,7 +162,7 @@ impl DiffuseMaterial {
 impl Material for DiffuseMaterial {
     fn brdf(&self, surface: &Intersection) -> Option<Bounce> {
         Some(Bounce {
-            color: self.albedo.sample(&surface.uv) / std::f32::consts::PI,
+            color: self.albedo.sample(&surface.uv, &surface.position) / std::f32::consts::PI,
             out_dir: surface.normal + rand_sphere(),
         })
     }
@@ -467,13 +489,16 @@ fn main() {
     let mut ctx = MyContext {
         output_image: image::ImageBuffer::new(width, height),
         accumulation_buffer: vec![Color::new(0., 0., 0.); (width * height) as usize],
-        spp: 8,
-        max_depth: 8,
+        spp: 4,
+        max_depth: 4,
         materials: Vec::new(),
     };
 
     ctx.materials.push(Box::new(DiffuseMaterial::new(Box::new(
-        SolidColorTexture::new(&Color::new(1., 1., 1.)),
+        CheckerTexture::new(
+            Box::new(SolidColorTexture::new(&Color::new(1., 1., 1.))),
+            Box::new(SolidColorTexture::new(&Color::new(0., 0., 0.))),
+        ),
     ))));
 
     ctx.materials.push(Box::new(DiffuseMaterial::new(Box::new(
