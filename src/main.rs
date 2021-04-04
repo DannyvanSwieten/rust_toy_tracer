@@ -18,6 +18,7 @@ type Direction = Vector3<f32>;
 type Barycentrics = Vector2<f32>;
 type FragCoord = Vector2<u32>;
 type Size2D = Vector2<u32>;
+type TextureCoordinate = Vector2<f32>;
 
 fn degrees_to_radians(degrees: f32) -> f32 {
     degrees * std::f32::consts::PI / 180.
@@ -55,6 +56,7 @@ pub struct Intersection {
     in_direction: Direction,
     t: f32,
     normal: Normal,
+    uv: TextureCoordinate,
     object_id: u32,
     instance_id: u32,
     primitive_id: u32,
@@ -68,6 +70,7 @@ impl Intersection {
         in_direction: &Direction,
         t: f32,
         normal: &Normal,
+        uv: &TextureCoordinate,
         object_id: u32,
         instance_id: u32,
         primitive_id: u32,
@@ -78,6 +81,7 @@ impl Intersection {
             position: *position,
             in_direction: *in_direction,
             t,
+            uv: *uv,
             normal: *normal,
             object_id,
             instance_id,
@@ -103,20 +107,40 @@ pub trait Material {
     fn pdf(&self, surface: &Intersection) -> f32;
 }
 
-pub struct DiffuseMaterial {
+pub trait Texture {
+    fn sample(&self, uv: &TextureCoordinate) -> Color;
+}
+
+pub struct SolidColorTexture {
     color: Color,
 }
 
-impl DiffuseMaterial {
+impl SolidColorTexture {
     fn new(color: &Color) -> Self {
         Self { color: *color }
+    }
+}
+
+impl Texture for SolidColorTexture {
+    fn sample(&self, _: &TextureCoordinate) -> Color {
+        self.color
+    }
+}
+
+pub struct DiffuseMaterial {
+    albedo: Box<dyn Texture>,
+}
+
+impl DiffuseMaterial {
+    fn new(albedo: Box<dyn Texture>) -> Self {
+        Self { albedo }
     }
 }
 
 impl Material for DiffuseMaterial {
     fn brdf(&self, surface: &Intersection) -> Option<Bounce> {
         Some(Bounce {
-            color: self.color / std::f32::consts::PI,
+            color: self.albedo.sample(&surface.uv) / std::f32::consts::PI,
             out_dir: surface.normal + rand_sphere(),
         })
     }
@@ -177,10 +201,11 @@ impl Hittable for Sphere {
             &ray.dir,
             root,
             &n,
+            &TextureCoordinate::new(0., 0.),
             0,
             0,
             0,
-            0,
+            self.material_id,
             &Barycentrics::new(0., 0.),
         ));
     }
@@ -442,21 +467,27 @@ fn main() {
     let mut ctx = MyContext {
         output_image: image::ImageBuffer::new(width, height),
         accumulation_buffer: vec![Color::new(0., 0., 0.); (width * height) as usize],
-        spp: 8,
+        spp: 4,
         max_depth: 8,
         materials: Vec::new(),
     };
 
-    ctx.materials.push(Box::new(DiffuseMaterial {
-        color: Color::new(1., 1., 1.),
-    }));
+    ctx.materials.push(Box::new(DiffuseMaterial::new(Box::new(
+        SolidColorTexture::new(&Color::new(1., 1., 1.)),
+    ))));
 
-    scene.add_hittable(Box::new(Sphere::new(1., &Position::new(0., 1., 0.), 0)));
+    ctx.materials.push(Box::new(DiffuseMaterial::new(Box::new(
+        SolidColorTexture::new(&Color::new(1., 0., 1.)),
+    ))));
+
+    // Floor
     scene.add_hittable(Box::new(Sphere::new(
         1000.,
         &Position::new(0., -1000., 0.),
         0,
     )));
+
+    scene.add_hittable(Box::new(Sphere::new(1., &Position::new(0., 1., 0.), 1)));
     let tracer = CPUTracer::new(Box::new(RayGenerator {
         camera: camera,
         ctx: std::marker::PhantomData::<MyContext>::default(),
