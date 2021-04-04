@@ -1,3 +1,5 @@
+use std::thread;
+
 use glm;
 use glm::builtin::*;
 use glm::Matrix4x3;
@@ -50,31 +52,37 @@ impl Ray {
 
 pub struct Intersection {
     position: Position,
+    in_direction: Direction,
     t: f32,
     normal: Normal,
     object_id: u32,
     instance_id: u32,
     primitive_id: u32,
+    material_id: u32,
     barycentrics: Barycentrics,
 }
 
 impl Intersection {
     pub fn new(
         position: &Position,
+        in_direction: &Direction,
         t: f32,
         normal: &Normal,
         object_id: u32,
         instance_id: u32,
         primitive_id: u32,
+        material_id: u32,
         barycentrics: &Barycentrics,
     ) -> Self {
         Self {
             position: *position,
+            in_direction: *in_direction,
             t,
             normal: *normal,
             object_id,
             instance_id,
             primitive_id,
+            material_id,
             barycentrics: *barycentrics,
         }
     }
@@ -85,9 +93,36 @@ pub struct TraceResult {
     intersection: Option<Intersection>,
 }
 
+pub struct Bounce {
+    color: Color,
+    out_dir: Direction,
+}
+
 pub trait Material {
-    fn brdf(&self, surface: &Intersection) -> Color;
+    fn brdf(&self, surface: &Intersection) -> Option<Bounce>;
     fn pdf(&self, surface: &Intersection) -> f32;
+}
+
+pub struct DiffuseMaterial {
+    color: Color,
+}
+
+impl DiffuseMaterial {
+    fn new(color: &Color) -> Self {
+        Self { color: *color }
+    }
+}
+
+impl Material for DiffuseMaterial {
+    fn brdf(&self, surface: &Intersection) -> Option<Bounce> {
+        Some(Bounce {
+            color: self.color / std::f32::consts::PI,
+            out_dir: surface.normal + rand_sphere(),
+        })
+    }
+    fn pdf(&self, _: &Intersection) -> f32 {
+        1.
+    }
 }
 
 pub trait Hittable {
@@ -97,13 +132,15 @@ pub trait Hittable {
 pub struct Sphere {
     radius: f32,
     position: Position,
+    material_id: u32,
 }
 
 impl Sphere {
-    fn new(radius: f32, position: &Position) -> Self {
+    fn new(radius: f32, position: &Position, material_id: u32) -> Self {
         Self {
             radius,
             position: *position,
+            material_id,
         }
     }
 }
@@ -137,8 +174,10 @@ impl Hittable for Sphere {
 
         return Some(Intersection::new(
             &p,
+            &ray.dir,
             root,
             &n,
+            0,
             0,
             0,
             0,
@@ -211,7 +250,6 @@ impl<Context> Hittable for Scene<Context> {
 
 pub struct CameraSettings {
     origin: Position,
-    look_at: Position,
     left_corner: Position,
     horizontal: Direction,
     vertical: Direction,
@@ -236,7 +274,6 @@ impl CameraSettings {
         let left_corner = *origin - horizontal / 2. - vertical / 2. - w;
         Self {
             origin: *origin,
-            look_at: *look_at,
             left_corner,
             horizontal,
             vertical,
@@ -355,12 +392,14 @@ impl RayGenerationShader<MyContext> for RayGenerator<MyContext> {
             let mut ray = self.camera.ray(u, 1. - v);
             for _ in 0..context.max_depth {
                 if let Some(hit) = ray_tracer.intersect(context, scene, &ray) {
-                    let col = Color::new(0.5, 0.5, 0.5);
-                    coefficient = coefficient * col;
-                    let p = ray.at(hit.t);
-                    let target = p + hit.normal + rand_sphere();
-                    let dir = normalize(target);
-                    ray = Ray::new(&p, &dir);
+                    if let Some(bounce) = context.materials[hit.material_id as usize].brdf(&hit) {
+                        coefficient = coefficient * bounce.color;
+                        let p = ray.at(hit.t);
+                        ray = Ray::new(&p, &bounce.out_dir);
+                    } else {
+                        coefficient = Color::new(0., 0., 0.);
+                        break;
+                    }
                 } else {
                     let d = 0.5 * ray.dir.y + 1.;
                     let c = Color::new(1.0, 1.0, 1.0) * (1.0 - d) + Color::new(0.5, 0.7, 1.0) * d;
@@ -387,11 +426,12 @@ struct MyContext {
     accumulation_buffer: Vec<Color>,
     spp: u32,
     max_depth: u32,
+    materials: Vec<Box<dyn Material>>,
 }
 
 fn main() {
-    let width = 1920;
-    let height = 1080;
+    let width = 1280;
+    let height = 720;
     let mut scene = Scene::<MyContext>::new();
     let camera = CameraSettings::new(
         &Position::new(13., 2., 3.),
@@ -404,9 +444,19 @@ fn main() {
         accumulation_buffer: vec![Color::new(0., 0., 0.); (width * height) as usize],
         spp: 8,
         max_depth: 8,
+        materials: Vec::new(),
     };
-    scene.add_hittable(Box::new(Sphere::new(0.75, &Position::new(0., 1., 0.))));
-    scene.add_hittable(Box::new(Sphere::new(1000., &Position::new(0., -1000., 0.))));
+
+    ctx.materials.push(Box::new(DiffuseMaterial {
+        color: Color::new(1., 1., 1.),
+    }));
+
+    scene.add_hittable(Box::new(Sphere::new(1., &Position::new(0., 1., 0.), 0)));
+    scene.add_hittable(Box::new(Sphere::new(
+        1000.,
+        &Position::new(0., -1000., 0.),
+        0,
+    )));
     let tracer = CPUTracer::new(Box::new(RayGenerator {
         camera: camera,
         ctx: std::marker::PhantomData::<MyContext>::default(),
