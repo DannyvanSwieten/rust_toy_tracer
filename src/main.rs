@@ -7,6 +7,7 @@ pub mod raytracer;
 pub mod scene;
 pub mod types;
 
+use crossbeam::thread;
 use hittable::*;
 use intersection::*;
 use material::*;
@@ -141,29 +142,37 @@ impl<Context> CPUTracer<Context> {
     }
 }
 
-impl<Context: 'static + Send + Sync> RayTracer<Context> for CPUTracer<Context> {
-    fn trace(
-        &'static self,
-        context: &'static Context,
-        width: u32,
-        height: u32,
-        scene: &'static Scene,
-    ) {
-        let mut accumulation_buffer =
-            vec![Color::new(0., 0., 0.); width as usize * height as usize];
+impl<Context: Send + Sync> RayTracer<Context> for CPUTracer<Context> {
+    fn trace(&self, context: &Context, width: u32, height: u32, scene: &Scene) {
+        for row in (0..height as i32 - 1).rev().step_by(8) {
+            if row < 0 {
+                break;
+            }
+            let scope = thread::scope(move |s| {
+                for t in (0..8 as i32).rev() {
+                    if row - t < 0 {
+                        break;
+                    }
+                    s.spawn(move |_| {
+                        for x in 0..width {
+                            let c = self.ray_generation_shader.generate(
+                                self,
+                                context,
+                                scene,
+                                width,
+                                height,
+                                x,
+                                (row - t).max(0) as u32,
+                            );
 
-        for y in (0..height - 1).rev() {
-            std::thread::spawn(|| {
-                for x in 0..width {
-                    let c = self
-                        .ray_generation_shader
-                        .generate(self, context, scene, width, height, x, y);
-                    let idx = y * width + x;
-                    //accumulation_buffer[idx as usize] = c;
+                            let idx = (row - t) as u32 * width + x;
+                        }
+                        let progress = 1. - (row - t) as f32 / height as f32;
+                        println!("Progress: {} Row: {}", progress * 100., row - t);
+                    });
                 }
-                let progress = 1. - y as f32 / height as f32;
-                println!("Progress: {}", progress * 100.);
-            });
+            })
+            .unwrap();
         }
     }
 
@@ -241,7 +250,7 @@ fn main() {
         65.,
     );
     let mut ctx = MyContext {
-        spp: 4,
+        spp: 8,
         max_depth: 4,
         materials: Vec::new(),
     };

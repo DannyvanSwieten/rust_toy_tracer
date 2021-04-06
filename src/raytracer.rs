@@ -11,9 +11,9 @@ pub trait RayTracer<Context> {
 pub trait RayGenerationShader<Context> {
     fn generate(
         &self,
-        ray_tracer: &'static dyn RayTracer<Context>,
-        context: &'static Context,
-        scene: &'static Scene,
+        ray_tracer: &dyn RayTracer<Context>,
+        context: &Context,
+        scene: &Scene,
         width: u32,
         height: u32,
         x: u32,
