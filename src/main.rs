@@ -7,6 +7,9 @@ pub mod raytracer;
 pub mod scene;
 pub mod types;
 
+use std::sync::mpsc;
+use std::sync::mpsc::{Receiver, Sender};
+
 use crossbeam::thread;
 use hittable::*;
 use intersection::*;
@@ -21,7 +24,8 @@ use glm;
 use glm::builtin::*;
 
 use image; // 0.23.14
-use image::{Rgb, RgbImage};
+use image::imageops::*;
+use image::{GenericImage, GenericImageView, Rgb, RgbImage};
 
 fn degrees_to_radians(degrees: f32) -> f32 {
     degrees * std::f32::consts::PI / 180.
@@ -87,6 +91,28 @@ impl Material for DiffuseMaterial {
     }
 }
 
+pub struct MirrorMaterial {
+    albedo: Box<dyn Texture + Send + Sync>,
+}
+
+impl Material for MirrorMaterial {
+    fn brdf(&self, surface: &Intersection) -> Option<Bounce> {
+        Some(Bounce {
+            color: self.albedo.sample(&surface.uv, &surface.position),
+            out_dir: reflect(surface.in_direction, surface.normal),
+        })
+    }
+    fn pdf(&self, _: &Intersection) -> f32 {
+        1.
+    }
+}
+
+impl MirrorMaterial {
+    fn new(albedo: Box<dyn Texture + Send + Sync>) -> Self {
+        Self { albedo }
+    }
+}
+
 pub struct CameraSettings {
     origin: Position,
     left_corner: Position,
@@ -144,36 +170,63 @@ impl<Context> CPUTracer<Context> {
 
 impl<Context: Send + Sync> RayTracer<Context> for CPUTracer<Context> {
     fn trace(&self, context: &Context, width: u32, height: u32, scene: &Scene) {
-        for row in (0..height as i32 - 1).rev().step_by(8) {
-            if row < 0 {
+        let thread_count: u32 = 64;
+        let mut image = RgbImage::new(width, height);
+        let (tx, rx): (
+            Sender<Vec<(u32, u32, Color)>>,
+            Receiver<Vec<(u32, u32, Color)>>,
+        ) = mpsc::channel();
+
+        for row in (0..height).step_by(thread_count as usize) {
+            if row >= height {
                 break;
             }
+
+            let thread_tx = tx.clone();
+
+            //let slice = acc[(row * width) as usize..(row * width + width) as usize];
             let scope = thread::scope(move |s| {
-                for t in (0..8 as i32).rev() {
-                    if row - t < 0 {
+                for t in 0..thread_count {
+                    if row + t >= height {
                         break;
                     }
+                    let thread_tx = thread_tx.clone();
+
                     s.spawn(move |_| {
+                        let mut row_vector = Vec::with_capacity(width as usize);
                         for x in 0..width {
-                            let c = self.ray_generation_shader.generate(
+                            let color = self.ray_generation_shader.generate(
                                 self,
                                 context,
                                 scene,
                                 width,
                                 height,
                                 x,
-                                (row - t).max(0) as u32,
+                                row + t,
                             );
 
-                            let idx = (row - t) as u32 * width + x;
+                            row_vector.push((x, row + t, color));
                         }
-                        let progress = 1. - (row - t) as f32 / height as f32;
-                        println!("Progress: {} Row: {}", progress * 100., row - t);
+
+                        thread_tx.send(row_vector).unwrap();
+                        let progress = (row + t) as f32 / height as f32;
+                        println!("Progress: {} Row: {}", progress * 100., row + t);
                     });
                 }
             })
             .unwrap();
+
+            for row in rx.try_iter() {
+                for (x, y, color) in row {
+                    let r = (color.x.sqrt() * 255.) as u8;
+                    let g = (color.y.sqrt() * 255.) as u8;
+                    let b = (color.z.sqrt() * 255.) as u8;
+                    image.put_pixel(x, y, Rgb([r, g, b]))
+                }
+            }
         }
+
+        image.save("output.png");
     }
 
     fn intersect(&self, _: &Context, scene: &Scene, ray: &Ray) -> Option<Intersection> {
@@ -225,9 +278,6 @@ impl RayGenerationShader<MyContext> for RayGenerator {
 
         color = color / context.spp as f32;
         color
-        // let r = (sqrt(color.x) * 255.) as u8;
-        // let g = (sqrt(color.y) * 255.) as u8;
-        // let b = (sqrt(color.z) * 255.) as u8;
 
         //context.output_image.put_pixel(x, y, Rgb([r, g, b]));
     }
@@ -244,7 +294,7 @@ fn main() {
     let height = 720;
     let mut scene = Scene::new();
     let camera = CameraSettings::new(
-        &Position::new(13., 2., 3.),
+        &Position::new(0., 2., 13.),
         &Direction::new(0., 0., 0.),
         16. / 9.,
         65.,
@@ -266,6 +316,14 @@ fn main() {
         SolidColorTexture::new(&Color::new(1., 0., 1.)),
     ))));
 
+    ctx.materials.push(Box::new(DiffuseMaterial::new(Box::new(
+        SolidColorTexture::new(&Color::new(1., 1., 1.)),
+    ))));
+
+    ctx.materials.push(Box::new(MirrorMaterial::new(Box::new(
+        SolidColorTexture::new(&Color::new(0., 1., 1.)),
+    ))));
+
     // Floor
     scene.add_hittable(Box::new(Sphere::new(
         1000.,
@@ -273,20 +331,19 @@ fn main() {
         0,
     )));
 
-    for _ in 0..20 {
+    for _ in 0..30 {
         scene.add_hittable(Box::new(Sphere::new(
             rand_range(0.5, 1.25),
             &Position::new(
                 rand_range(-10., 10.),
-                rand_range(1., 5.),
-                rand_range(-10., 10.),
+                rand_range(1., 10.),
+                rand_range(2., 10.),
             ),
-            1,
+            rand_range(0., 4.) as u32,
         )));
     }
     scene.add_hittable(Box::new(Sphere::new(1., &Position::new(0., 1., 0.), 1)));
     let tracer = CPUTracer::new(Box::new(RayGenerator { camera: camera }));
 
     tracer.trace(&ctx, width, height, &scene);
-    //ctx.output_image.save("output.png");
 }
