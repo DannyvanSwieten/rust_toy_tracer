@@ -10,7 +10,7 @@ pub struct Instance {
 }
 
 pub struct Scene {
-    hittables: Vec<Box<dyn Hittable>>,
+    hittables: Vec<Box<dyn Hittable + Send + Sync>>,
     instances: Vec<Instance>,
 }
 
@@ -22,7 +22,7 @@ impl Scene {
         }
     }
 
-    pub fn add_hittable(&mut self, t: Box<dyn Hittable>) -> usize {
+    pub fn add_hittable(&mut self, t: Box<dyn Hittable + Send + Sync>) -> usize {
         self.hittables.push(t);
         self.hittables.len() - 1
     }

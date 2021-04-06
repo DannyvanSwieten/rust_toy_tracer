@@ -43,12 +43,12 @@ impl Texture for SolidColorTexture {
 }
 
 pub struct CheckerTexture {
-    even: Box<dyn Texture>,
-    odd: Box<dyn Texture>,
+    even: Box<dyn Texture + Send + Sync>,
+    odd: Box<dyn Texture + Send + Sync>,
 }
 
 impl CheckerTexture {
-    fn new(even: Box<dyn Texture>, odd: Box<dyn Texture>) -> Self {
+    fn new(even: Box<dyn Texture + Send + Sync>, odd: Box<dyn Texture + Send + Sync>) -> Self {
         Self { even, odd }
     }
 }
@@ -65,11 +65,11 @@ impl Texture for CheckerTexture {
 }
 
 pub struct DiffuseMaterial {
-    albedo: Box<dyn Texture>,
+    albedo: Box<dyn Texture + Send + Sync>,
 }
 
 impl DiffuseMaterial {
-    fn new(albedo: Box<dyn Texture>) -> Self {
+    fn new(albedo: Box<dyn Texture + Send + Sync>) -> Self {
         Self { albedo }
     }
 }
@@ -130,34 +130,40 @@ impl CameraSettings {
 }
 
 pub struct CPUTracer<Context> {
-    ray_generation_shader: Box<dyn RayGenerationShader<Context>>,
+    ray_generation_shader: Box<dyn RayGenerationShader<Context> + Send + Sync>,
 }
 
 impl<Context> CPUTracer<Context> {
-    fn new(ray_generation_shader: Box<dyn RayGenerationShader<Context>>) -> Self {
+    fn new(ray_generation_shader: Box<dyn RayGenerationShader<Context> + Send + Sync>) -> Self {
         Self {
             ray_generation_shader,
         }
     }
 }
 
-impl<Context> RayTracer<Context> for CPUTracer<Context> {
-    fn trace(&self, context: &Context, width: u32, height: u32, scene: &Scene) {
+impl<Context: 'static + Send + Sync> RayTracer<Context> for CPUTracer<Context> {
+    fn trace(
+        &'static self,
+        context: &'static Context,
+        width: u32,
+        height: u32,
+        scene: &'static Scene,
+    ) {
         let mut accumulation_buffer =
             vec![Color::new(0., 0., 0.); width as usize * height as usize];
 
         for y in (0..height - 1).rev() {
-            for x in 0..width {
-                let c = self
-                    .ray_generation_shader
-                    .generate(self, context, scene, width, height, x, y);
-
-                let idx = y * width + x;
-                accumulation_buffer[idx as usize] = c;
-            }
-
-            let progress = 1. - y as f32 / height as f32;
-            println!("Progress: {}", progress * 100.);
+            std::thread::spawn(|| {
+                for x in 0..width {
+                    let c = self
+                        .ray_generation_shader
+                        .generate(self, context, scene, width, height, x, y);
+                    let idx = y * width + x;
+                    //accumulation_buffer[idx as usize] = c;
+                }
+                let progress = 1. - y as f32 / height as f32;
+                println!("Progress: {}", progress * 100.);
+            });
         }
     }
 
@@ -221,7 +227,7 @@ impl RayGenerationShader<MyContext> for RayGenerator {
 struct MyContext {
     spp: u32,
     max_depth: u32,
-    materials: Vec<Box<dyn Material>>,
+    materials: Vec<Box<dyn Material + Send + Sync>>,
 }
 
 fn main() {
