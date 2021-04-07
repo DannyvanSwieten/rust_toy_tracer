@@ -1,6 +1,8 @@
+use super::bounding_box::*;
 use super::hittable::*;
 use super::intersection::*;
 use super::ray::*;
+use super::types::*;
 use glm::Matrix4x3;
 
 pub struct Instance {
@@ -43,5 +45,28 @@ impl Hittable for Scene {
         }
 
         return intersection;
+    }
+    fn bounding_box(&self) -> Option<BoundingBox> {
+        if self.hittables.len() == 0 {
+            return None;
+        }
+
+        let mut tmp = BoundingBox::new(&Position::new(0., 0., 0.), &Position::new(0., 0., 0.));
+        let mut output = BoundingBox::new(&Position::new(0., 0., 0.), &Position::new(0., 0., 0.));
+        let mut first_box = true;
+
+        for hittable in self.hittables.iter() {
+            if hittable.bounding_box().is_none() {
+                return None;
+            }
+
+            if first_box {
+                output = tmp
+            } else {
+                output = BoundingBox::surrounding_box(&output, &tmp);
+            }
+        }
+
+        Some(output)
     }
 }

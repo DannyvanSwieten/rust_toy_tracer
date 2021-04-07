@@ -1,3 +1,4 @@
+use super::bounding_box::*;
 use super::intersection::*;
 use super::ray::*;
 use super::types::*;
@@ -5,6 +6,7 @@ use glm::builtin::*;
 
 pub trait Hittable {
     fn intersect(&self, ray: &Ray, t_min: f32, t_max: f32) -> Option<Intersection>;
+    fn bounding_box(&self) -> Option<BoundingBox>;
 }
 
 pub struct Sphere {
@@ -62,5 +64,9 @@ impl Hittable for Sphere {
             self.material_id,
             &Barycentrics::new(0., 0.),
         ));
+    }
+    fn bounding_box(&self) -> std::option::Option<BoundingBox> {
+        let r = Position::new(self.radius, self.radius, self.radius);
+        Some(BoundingBox::new(&(self.position - r), &(self.position + r)))
     }
 }

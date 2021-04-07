@@ -1,3 +1,4 @@
+pub mod bounding_box;
 pub mod hittable;
 pub mod intersection;
 pub mod material;
@@ -295,13 +296,13 @@ fn main() {
     let mut scene = Scene::new();
     let camera = CameraSettings::new(
         &Position::new(0., 2., 13.),
-        &Direction::new(0., 0., 0.),
+        &Direction::new(0., 2., 0.),
         16. / 9.,
         65.,
     );
     let mut ctx = MyContext {
-        spp: 8,
-        max_depth: 4,
+        spp: 64,
+        max_depth: 16,
         materials: Vec::new(),
     };
 
