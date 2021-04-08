@@ -1,11 +1,12 @@
+use super::acceleration_structure::*;
 use super::intersection::*;
 use super::ray::*;
 use super::scene::*;
 use super::types::*;
 
 pub trait RayTracer<Context> {
-    fn trace(&self, context: &Context, width: u32, height: u32, scene: &Scene);
-    fn intersect(&self, context: &Context, scene: &Scene, ray: &Ray) -> Option<Intersection>;
+    fn trace(&self, context: &Context, width: u32, height: u32, scene: &AccelerationStructure);
+    fn intersect(&self, context: &Context, scene: &AccelerationStructure, ray: &Ray) -> Option<Intersection>;
 }
 
 pub trait RayGenerationShader<Context> {
@@ -13,7 +14,7 @@ pub trait RayGenerationShader<Context> {
         &self,
         ray_tracer: &dyn RayTracer<Context>,
         context: &Context,
-        scene: &Scene,
+        scene: &AccelerationStructure,
         width: u32,
         height: u32,
         x: u32,

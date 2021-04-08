@@ -4,6 +4,7 @@ use super::intersection::*;
 use super::ray::*;
 use super::types::*;
 use glm::Matrix4x3;
+use std::sync::Arc;
 
 pub struct Instance {
     object_id: u32,
@@ -12,7 +13,7 @@ pub struct Instance {
 }
 
 pub struct Scene {
-    hittables: Vec<Box<dyn Hittable + Send + Sync>>,
+    hittables: Vec<Arc<dyn Hittable + Send + Sync>>,
     instances: Vec<Instance>,
 }
 
@@ -24,9 +25,13 @@ impl Scene {
         }
     }
 
-    pub fn add_hittable(&mut self, t: Box<dyn Hittable + Send + Sync>) -> usize {
+    pub fn add_hittable(&mut self, t: Arc<dyn Hittable + Send + Sync>) -> usize {
         self.hittables.push(t);
         self.hittables.len() - 1
+    }
+
+    pub fn hittables(&self) -> &Vec<Arc<dyn Hittable + Send + Sync>> {
+        &self.hittables
     }
 }
 
@@ -51,7 +56,7 @@ impl Hittable for Scene {
             return None;
         }
 
-        let mut tmp = BoundingBox::new(&Position::new(0., 0., 0.), &Position::new(0., 0., 0.));
+        let tmp = BoundingBox::new(&Position::new(0., 0., 0.), &Position::new(0., 0., 0.));
         let mut output = BoundingBox::new(&Position::new(0., 0., 0.), &Position::new(0., 0., 0.));
         let mut first_box = true;
 
@@ -61,7 +66,8 @@ impl Hittable for Scene {
             }
 
             if first_box {
-                output = tmp
+                output = tmp;
+                first_box = false
             } else {
                 output = BoundingBox::surrounding_box(&output, &tmp);
             }

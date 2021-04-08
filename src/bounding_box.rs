@@ -16,6 +16,14 @@ impl BoundingBox {
         }
     }
 
+    pub fn min(&self) -> &Position {
+        &self.min
+    }
+
+    pub fn max(&self) -> &Position {
+        &self.max
+    }
+
     pub fn surrounding_box(a: &BoundingBox, b: &BoundingBox) -> Self {
         let small = min(a.min, b.min);
         let big = max(a.max, b.max);
@@ -35,7 +43,7 @@ impl BoundingBox {
             let min = if t0 > t_min { t0 } else { t_min };
             let max = if t1 < t_max { t1 } else { t_max };
 
-            if min <= max {
+            if max <= min {
                 return false;
             }
         }

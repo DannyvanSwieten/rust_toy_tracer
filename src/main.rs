@@ -1,3 +1,4 @@
+pub mod acceleration_structure;
 pub mod bounding_box;
 pub mod hittable;
 pub mod intersection;
@@ -10,7 +11,9 @@ pub mod types;
 
 use std::sync::mpsc;
 use std::sync::mpsc::{Receiver, Sender};
+use std::sync::Arc;
 
+use acceleration_structure::*;
 use crossbeam::thread;
 use hittable::*;
 use intersection::*;
@@ -49,12 +52,12 @@ impl Texture for SolidColorTexture {
 }
 
 pub struct CheckerTexture {
-    even: Box<dyn Texture + Send + Sync>,
-    odd: Box<dyn Texture + Send + Sync>,
+    even: Arc<dyn Texture + Send + Sync>,
+    odd: Arc<dyn Texture + Send + Sync>,
 }
 
 impl CheckerTexture {
-    fn new(even: Box<dyn Texture + Send + Sync>, odd: Box<dyn Texture + Send + Sync>) -> Self {
+    fn new(even: Arc<dyn Texture + Send + Sync>, odd: Arc<dyn Texture + Send + Sync>) -> Self {
         Self { even, odd }
     }
 }
@@ -71,11 +74,11 @@ impl Texture for CheckerTexture {
 }
 
 pub struct DiffuseMaterial {
-    albedo: Box<dyn Texture + Send + Sync>,
+    albedo: Arc<dyn Texture + Send + Sync>,
 }
 
 impl DiffuseMaterial {
-    fn new(albedo: Box<dyn Texture + Send + Sync>) -> Self {
+    fn new(albedo: Arc<dyn Texture + Send + Sync>) -> Self {
         Self { albedo }
     }
 }
@@ -93,7 +96,7 @@ impl Material for DiffuseMaterial {
 }
 
 pub struct MirrorMaterial {
-    albedo: Box<dyn Texture + Send + Sync>,
+    albedo: Arc<dyn Texture + Send + Sync>,
 }
 
 impl Material for MirrorMaterial {
@@ -109,7 +112,7 @@ impl Material for MirrorMaterial {
 }
 
 impl MirrorMaterial {
-    fn new(albedo: Box<dyn Texture + Send + Sync>) -> Self {
+    fn new(albedo: Arc<dyn Texture + Send + Sync>) -> Self {
         Self { albedo }
     }
 }
@@ -158,11 +161,11 @@ impl CameraSettings {
 }
 
 pub struct CPUTracer<Context> {
-    ray_generation_shader: Box<dyn RayGenerationShader<Context> + Send + Sync>,
+    ray_generation_shader: Arc<dyn RayGenerationShader<Context> + Send + Sync>,
 }
 
 impl<Context> CPUTracer<Context> {
-    fn new(ray_generation_shader: Box<dyn RayGenerationShader<Context> + Send + Sync>) -> Self {
+    fn new(ray_generation_shader: Arc<dyn RayGenerationShader<Context> + Send + Sync>) -> Self {
         Self {
             ray_generation_shader,
         }
@@ -170,7 +173,7 @@ impl<Context> CPUTracer<Context> {
 }
 
 impl<Context: Send + Sync> RayTracer<Context> for CPUTracer<Context> {
-    fn trace(&self, context: &Context, width: u32, height: u32, scene: &Scene) {
+    fn trace(&self, context: &Context, width: u32, height: u32, scene: &AccelerationStructure) {
         let thread_count: u32 = 64;
         let mut image = RgbImage::new(width, height);
         let (tx, rx): (
@@ -230,7 +233,12 @@ impl<Context: Send + Sync> RayTracer<Context> for CPUTracer<Context> {
         image.save("output.png");
     }
 
-    fn intersect(&self, _: &Context, scene: &Scene, ray: &Ray) -> Option<Intersection> {
+    fn intersect(
+        &self,
+        _: &Context,
+        scene: &AccelerationStructure,
+        ray: &Ray,
+    ) -> Option<Intersection> {
         scene.intersect(ray, 0.01, 1000.)
     }
 }
@@ -244,7 +252,7 @@ impl RayGenerationShader<MyContext> for RayGenerator {
         &self,
         ray_tracer: &dyn RayTracer<MyContext>,
         context: &MyContext,
-        scene: &Scene,
+        scene: &AccelerationStructure,
         width: u32,
         height: u32,
         x: u32,
@@ -287,7 +295,7 @@ impl RayGenerationShader<MyContext> for RayGenerator {
 struct MyContext {
     spp: u32,
     max_depth: u32,
-    materials: Vec<Box<dyn Material + Send + Sync>>,
+    materials: Vec<Arc<dyn Material + Send + Sync>>,
 }
 
 fn main() {
@@ -306,34 +314,34 @@ fn main() {
         materials: Vec::new(),
     };
 
-    ctx.materials.push(Box::new(DiffuseMaterial::new(Box::new(
+    ctx.materials.push(Arc::new(DiffuseMaterial::new(Arc::new(
         CheckerTexture::new(
-            Box::new(SolidColorTexture::new(&Color::new(1., 1., 1.))),
-            Box::new(SolidColorTexture::new(&Color::new(0., 0., 0.))),
+            Arc::new(SolidColorTexture::new(&Color::new(1., 1., 1.))),
+            Arc::new(SolidColorTexture::new(&Color::new(0., 0., 0.))),
         ),
     ))));
 
-    ctx.materials.push(Box::new(DiffuseMaterial::new(Box::new(
+    ctx.materials.push(Arc::new(DiffuseMaterial::new(Arc::new(
         SolidColorTexture::new(&Color::new(1., 0., 1.)),
     ))));
 
-    ctx.materials.push(Box::new(DiffuseMaterial::new(Box::new(
+    ctx.materials.push(Arc::new(DiffuseMaterial::new(Arc::new(
         SolidColorTexture::new(&Color::new(1., 1., 1.)),
     ))));
 
-    ctx.materials.push(Box::new(MirrorMaterial::new(Box::new(
+    ctx.materials.push(Arc::new(MirrorMaterial::new(Arc::new(
         SolidColorTexture::new(&Color::new(0., 1., 1.)),
     ))));
 
     // Floor
-    scene.add_hittable(Box::new(Sphere::new(
+    scene.add_hittable(Arc::new(Sphere::new(
         1000.,
         &Position::new(0., -1000., 0.),
         0,
     )));
 
     for _ in 0..30 {
-        scene.add_hittable(Box::new(Sphere::new(
+        scene.add_hittable(Arc::new(Sphere::new(
             rand_range(0.5, 1.25),
             &Position::new(
                 rand_range(-10., 10.),
@@ -343,8 +351,9 @@ fn main() {
             rand_range(0., 4.) as u32,
         )));
     }
-    scene.add_hittable(Box::new(Sphere::new(1., &Position::new(0., 1., 0.), 1)));
-    let tracer = CPUTracer::new(Box::new(RayGenerator { camera: camera }));
+    scene.add_hittable(Arc::new(Sphere::new(1., &Position::new(0., 1., 0.), 1)));
+    let acc = AccelerationStructure::new(&scene);
+    let tracer = CPUTracer::new(Arc::new(RayGenerator { camera: camera }));
 
-    tracer.trace(&ctx, width, height, &scene);
+    tracer.trace(&ctx, width, height, &acc);
 }
