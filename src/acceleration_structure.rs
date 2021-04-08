@@ -1,6 +1,7 @@
 use super::bounding_box::*;
 use super::hittable::*;
 use super::intersection::*;
+use super::rand_float::rand_range;
 use super::ray::*;
 use super::scene::*;
 use std::sync::Arc;
@@ -16,22 +17,16 @@ impl Hittable for AccelerationStructure {
         if !self.bounding_box.hit(ray, t_min, t_max) {
             return None;
         } else {
-            let left = self.left.intersect(ray, t_min, t_max);
-
-            if let Some(left_hit) = left {
-                let right = self.right.intersect(ray, t_min, left_hit.t);
-                if right.is_some() {
-                    return right;
+            if let Some(left_hit) = self.left.intersect(ray, t_min, t_max) {
+                if let Some(right_hit) = self.right.intersect(ray, t_min, left_hit.t) {
+                    return Some(right_hit);
                 } else {
                     return Some(left_hit);
                 }
             } else {
-                let right = self.right.intersect(ray, t_min, t_max);
-                return right;
+                return self.right.intersect(ray, t_min, t_max);
             }
         }
-
-        None
     }
     fn bounding_box(&self) -> Option<BoundingBox> {
         Some(self.bounding_box)
@@ -53,14 +48,36 @@ impl AccelerationStructure {
         let mut hittables = hittables;
 
         // Sort them on random axis
-        hittables.sort_by(|a, b| {
-            a.bounding_box()
-                .unwrap()
-                .min()
-                .x
-                .partial_cmp(&b.bounding_box().unwrap().max().x)
-                .unwrap()
-        });
+        let r = rand_range(0., 3.) as u32;
+
+        if r == 0 {
+            hittables.sort_by(|a, b| {
+                a.bounding_box()
+                    .unwrap()
+                    .min()
+                    .x
+                    .partial_cmp(&b.bounding_box().unwrap().max().x)
+                    .unwrap()
+            });
+        } else if r == 1 {
+            hittables.sort_by(|a, b| {
+                a.bounding_box()
+                    .unwrap()
+                    .min()
+                    .y
+                    .partial_cmp(&b.bounding_box().unwrap().max().y)
+                    .unwrap()
+            });
+        } else {
+            hittables.sort_by(|a, b| {
+                a.bounding_box()
+                    .unwrap()
+                    .min()
+                    .z
+                    .partial_cmp(&b.bounding_box().unwrap().max().z)
+                    .unwrap()
+            });
+        }
 
         // Split in the center
         let (left, right) = hittables.split_at_mut(mid);
@@ -100,14 +117,37 @@ impl AccelerationStructure {
                 bounding_box: c,
             });
         } else {
-            clones.sort_by(|a, b| {
-                a.bounding_box()
-                    .unwrap()
-                    .min()
-                    .x
-                    .partial_cmp(&b.bounding_box().unwrap().max().x)
-                    .unwrap()
-            });
+            // Sort them on random axis
+            let r = rand_range(0., 3.) as u32;
+
+            if r == 0 {
+                clones.sort_by(|a, b| {
+                    a.bounding_box()
+                        .unwrap()
+                        .min()
+                        .x
+                        .partial_cmp(&b.bounding_box().unwrap().max().x)
+                        .unwrap()
+                });
+            } else if r == 1 {
+                clones.sort_by(|a, b| {
+                    a.bounding_box()
+                        .unwrap()
+                        .min()
+                        .y
+                        .partial_cmp(&b.bounding_box().unwrap().max().y)
+                        .unwrap()
+                });
+            } else {
+                clones.sort_by(|a, b| {
+                    a.bounding_box()
+                        .unwrap()
+                        .min()
+                        .z
+                        .partial_cmp(&b.bounding_box().unwrap().max().z)
+                        .unwrap()
+                });
+            }
 
             let (left, right) = clones.split_at_mut(clones.len() / 2 + 1);
             let left_node = Self::from_slice(left);
