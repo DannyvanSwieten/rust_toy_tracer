@@ -29,6 +29,7 @@ impl AccelerationStructV2 {
         let geometry_instances = instances.clone();
         let mut id_and_bb = Vec::new();
 
+        // collect bounding boxes and id's
         for instance in instances.iter() {
             id_and_bb.push((
                 instance.object_id,
@@ -39,9 +40,12 @@ impl AccelerationStructV2 {
             ))
         }
 
+        // sort them on x-axis (arbitrary axis)
         id_and_bb.sort_by(|a, b| a.1.min().x.partial_cmp(&b.1.max().x).unwrap());
         let mut bounding_box =
             BoundingBox::new(&Position::new(0., 0., 0.), &Position::new(0., 0., 0.));
+
+        // calculate the bounding box of the entire structure.
         for (_, bb) in id_and_bb.iter() {
             bounding_box = BoundingBox::surrounding_box(&bounding_box, &bb);
         }
@@ -52,10 +56,6 @@ impl AccelerationStructV2 {
             bounding_box,
         }
     }
-}
-
-struct InstanceNode {
-    instance: Instance,
 }
 
 pub struct AccelerationStructure {
