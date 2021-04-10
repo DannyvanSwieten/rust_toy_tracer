@@ -70,3 +70,50 @@ impl Hittable for Sphere {
         Some(BoundingBox::new(&(self.position - r), &(self.position + r)))
     }
 }
+
+pub struct TriangleMesh {
+    positions: Vec<Position>,
+    normals: Vec<Normal>,
+    tex_coords: Vec<TextureCoordinate>,
+    indices: Vec<u32>,
+}
+
+impl Hittable for TriangleMesh {
+    fn bounding_box(&self) -> Option<BoundingBox> {
+        let mut min_p = Position::new(std::f32::MIN, std::f32::MIN, std::f32::MIN);
+        let mut max_p = Position::new(std::f32::MAX, std::f32::MAX, std::f32::MAX);
+        for p in self.positions.iter() {
+            min_p = min(min_p, *p);
+            max_p = max(max_p, *p);
+        }
+
+        Some(BoundingBox::new(&min_p, &max_p))
+    }
+    fn intersect(&self, ray: &Ray, t_min: f32, t_max: f32) -> Option<Intersection> {
+        for i in self.indices.iter().step_by(3) {
+            let v0 = &self.positions[*i as usize];
+            let v1 = &self.positions[(*i + 1) as usize];
+            let v2 = &self.positions[(*i + 2) as usize];
+
+            if let Some(hit) = self.ray_triangle_intersect(ray, t_min, t_max, v0, v1, v2) {
+                return Some(hit);
+            }
+        }
+
+        None
+    }
+}
+
+impl TriangleMesh {
+    fn ray_triangle_intersect(
+        &self,
+        ray: &Ray,
+        t_min: f32,
+        t_max: f32,
+        v0: &Position,
+        v1: &Position,
+        v2: &Position,
+    ) -> Option<Intersection> {
+        None
+    }
+}

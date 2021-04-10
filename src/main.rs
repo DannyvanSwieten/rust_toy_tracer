@@ -330,7 +330,7 @@ fn main() {
     ))));
 
     ctx.materials.push(Arc::new(MirrorMaterial::new(Arc::new(
-        SolidColorTexture::new(&Color::new(0., 1., 1.)),
+        SolidColorTexture::new(&Color::new(1., 1., 1.)),
     ))));
 
     // Floor
@@ -342,7 +342,7 @@ fn main() {
 
     for _ in 0..30 {
         scene.add_hittable(Arc::new(Sphere::new(
-            rand_range(0.5, 1.25),
+            rand_range(0.5, 1.),
             &Position::new(
                 rand_range(-10., 10.),
                 rand_range(1., 10.),

@@ -4,7 +4,59 @@ use super::intersection::*;
 use super::rand_float::rand_range;
 use super::ray::*;
 use super::scene::*;
+use super::types::Position;
 use std::sync::Arc;
+
+struct AccelerationStructureNode {
+    left: Arc<dyn Hittable + Send + Sync>,
+    right: Arc<dyn Hittable + Send + Sync>,
+    bounding_box: BoundingBox,
+}
+
+pub struct AccelerationStructV2 {
+    hittables: Vec<Arc<dyn Hittable + Send + Sync>>,
+    instances: Vec<Instance>,
+    bounding_box: BoundingBox,
+    //root_node: AccelerationStructureNode,
+}
+
+impl AccelerationStructV2 {
+    pub fn new(
+        hittables: &Vec<Arc<dyn Hittable + Send + Sync>>,
+        instances: &Vec<Instance>,
+    ) -> Self {
+        let geometry = hittables.clone();
+        let geometry_instances = instances.clone();
+        let mut id_and_bb = Vec::new();
+
+        for instance in instances.iter() {
+            id_and_bb.push((
+                instance.object_id,
+                geometry[instance.object_id as usize]
+                    .bounding_box()
+                    .unwrap()
+                    .transformed(&instance.transform),
+            ))
+        }
+
+        id_and_bb.sort_by(|a, b| a.1.min().x.partial_cmp(&b.1.max().x).unwrap());
+        let mut bounding_box =
+            BoundingBox::new(&Position::new(0., 0., 0.), &Position::new(0., 0., 0.));
+        for (_, bb) in id_and_bb.iter() {
+            bounding_box = BoundingBox::surrounding_box(&bounding_box, &bb);
+        }
+
+        Self {
+            hittables: geometry,
+            instances: geometry_instances,
+            bounding_box,
+        }
+    }
+}
+
+struct InstanceNode {
+    instance: Instance,
+}
 
 pub struct AccelerationStructure {
     left: Arc<dyn Hittable + Send + Sync>,
@@ -34,6 +86,14 @@ impl Hittable for AccelerationStructure {
 }
 
 impl AccelerationStructure {
+    pub fn from_hittables_and_instances(
+        hittables: &Vec<Arc<dyn Hittable + Send + Sync>>,
+        instances: &Vec<Instance>,
+    ) -> Self {
+        let clones = hittables.clone();
+        Self::from_hittables(clones)
+    }
+
     pub fn new(scene: &Scene) -> Self {
         // Clone the hittables
         let hittables = scene.hittables().clone();
@@ -149,7 +209,7 @@ impl AccelerationStructure {
                 });
             }
 
-            let (left, right) = clones.split_at_mut(clones.len() / 2 + 1);
+            let (left, right) = clones.split_at_mut(clones.len() / 2);
             let left_node = Self::from_slice(left);
             let right_node = Self::from_slice(right);
 
@@ -164,4 +224,6 @@ impl AccelerationStructure {
             });
         }
     }
+
+    pub fn intersec_bounding_box(&self, t_min: f32, t_max: f32) {}
 }

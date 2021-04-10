@@ -6,10 +6,11 @@ use super::types::*;
 use glm::Matrix4x3;
 use std::sync::Arc;
 
+#[derive(Copy, Clone)]
 pub struct Instance {
-    object_id: u32,
-    hit_shader_id: u32,
-    transform: Matrix4x3<f32>,
+    pub object_id: u32,
+    pub hit_shader_id: u32,
+    pub transform: Transform,
 }
 
 pub struct Scene {

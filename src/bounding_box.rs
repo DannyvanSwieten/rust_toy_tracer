@@ -16,6 +16,13 @@ impl BoundingBox {
         }
     }
 
+    pub fn transformed(&self, transform: &Transform) -> Self {
+        let min = *transform * glm::Vector4::<f32>::new(self.min.x, self.min.y, self.min.z, 1.);
+        let max = *transform * glm::Vector4::<f32>::new(self.max.x, self.max.y, self.max.z, 1.);
+
+        Self::new(&min, &max)
+    }
+
     pub fn min(&self) -> &Position {
         &self.min
     }
