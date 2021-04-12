@@ -2,7 +2,7 @@ use super::bounding_box::*;
 use super::intersection::*;
 use super::ray::*;
 use super::types::*;
-use glm::builtin::*;
+use super::nalgebra_glm::*;
 
 pub trait Hittable {
     fn intersect(&self, ray: &Ray, t_min: f32, t_max: f32) -> Option<Intersection>;
@@ -28,10 +28,10 @@ impl Sphere {
 impl Hittable for Sphere {
     fn intersect(&self, ray: &Ray, t_min: f32, t_max: f32) -> Option<Intersection> {
         let oc = ray.origin - self.position;
-        let a = dot(ray.dir, ray.dir);
-        let half_b = dot(oc, ray.dir);
+        let a = dot(&ray.dir, &ray.dir);
+        let half_b = dot(&oc, &ray.dir);
         let r2 = self.radius * self.radius;
-        let c = dot(oc, oc) - r2;
+        let c = dot(&oc, &oc) - r2;
 
         let discr = half_b * half_b - a * c;
 
@@ -50,7 +50,7 @@ impl Hittable for Sphere {
 
         let p = ray.at(root);
         let n = (p - self.position) / self.radius;
-        let n = if dot(n, ray.dir) < 0. { n } else { -n };
+        let n = if dot(&n, &ray.dir) < 0. { n } else { -n };
 
         return Some(Intersection::new(
             &p,
@@ -83,8 +83,8 @@ impl Hittable for TriangleMesh {
         let mut min_p = Position::new(std::f32::MIN, std::f32::MIN, std::f32::MIN);
         let mut max_p = Position::new(std::f32::MAX, std::f32::MAX, std::f32::MAX);
         for p in self.positions.iter() {
-            min_p = min(min_p, *p);
-            max_p = max(max_p, *p);
+            min_p = min(&min_p, p);
+            max_p = max(&max_p, p);
         }
 
         Some(BoundingBox::new(&min_p, &max_p))

@@ -24,8 +24,8 @@ use raytracer::*;
 use scene::*;
 use types::*;
 
-use glm;
-use glm::builtin::*;
+extern crate nalgebra_glm;
+use nalgebra_glm::*;
 
 use image; // 0.23.14
 use image::imageops::*;
@@ -64,7 +64,7 @@ impl CheckerTexture {
 
 impl Texture for CheckerTexture {
     fn sample(&self, uv: &TextureCoordinate, position: &Position) -> Color {
-        let sines = sin(position.x * 10.) * sin(position.y * 10.) * sin(position.z * 10.);
+        let sines = (position.x * 10.).sin() * (position.y * 10.).sin() * (position.z * 10.).sin();
         if sines < 0. {
             self.odd.sample(uv, position)
         } else {
@@ -103,7 +103,7 @@ impl Material for MirrorMaterial {
     fn brdf(&self, surface: &Intersection) -> Option<Bounce> {
         Some(Bounce {
             color: self.albedo.sample(&surface.uv, &surface.position),
-            out_dir: reflect(surface.in_direction, surface.normal),
+            out_dir: reflect(&surface.in_direction, &surface.normal),
         })
     }
     fn pdf(&self, _: &Intersection) -> f32 {
@@ -134,9 +134,10 @@ impl CameraSettings {
         let viewport_height = 2.0 * h;
         let viewport_width = aspect_ratio * viewport_height;
 
-        let w = normalize(*origin - *look_at);
-        let u = cross(Direction::new(0., 1., 0.), w);
-        let v = cross(w, u);
+        let w = normalize(&(origin - look_at));
+        let up = Direction::new(0., 1., 0.);
+        let u = cross(&up, &w);
+        let v = cross(&w, &u);
 
         let horizontal = u * viewport_width;
         let vertical = v * viewport_height;
@@ -277,7 +278,7 @@ impl RayGenerationShader<MyContext> for RayGenerator {
                 } else {
                     let d = 0.5 * ray.dir.y + 1.;
                     let c = Color::new(1.0, 1.0, 1.0) * (1.0 - d) + Color::new(0.5, 0.7, 1.0) * d;
-                    coefficient = coefficient * c;
+                    coefficient *= c;
                     break;
                 }
             }
@@ -299,8 +300,8 @@ struct MyContext {
 }
 
 fn main() {
-    let width = 1280;
-    let height = 720;
+    let width = 720;
+    let height = 480;
     let mut scene = Scene::new();
     let camera = CameraSettings::new(
         &Position::new(0., 2., 13.),
@@ -333,15 +334,17 @@ fn main() {
         SolidColorTexture::new(&Color::new(1., 1., 1.)),
     ))));
 
+    let mut geometry = Vec::new();
+
     // Floor
-    scene.add_hittable(Arc::new(Sphere::new(
+    geometry.push(Arc::new(Sphere::new(
         1000.,
         &Position::new(0., -1000., 0.),
         0,
     )));
 
     for _ in 0..30 {
-        scene.add_hittable(Arc::new(Sphere::new(
+        geometry.push(Arc::new(Sphere::new(
             rand_range(0.5, 1.),
             &Position::new(
                 rand_range(-10., 10.),
@@ -351,7 +354,10 @@ fn main() {
             rand_range(0., 4.) as u32,
         )));
     }
-    scene.add_hittable(Arc::new(Sphere::new(1., &Position::new(0., 1., 0.), 1)));
+
+    //let mut instances = Vec::new();
+
+
     let acc = AccelerationStructure::new(&scene);
     let tracer = CPUTracer::new(Arc::new(RayGenerator { camera: camera }));
 

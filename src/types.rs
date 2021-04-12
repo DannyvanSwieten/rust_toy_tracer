@@ -1,12 +1,13 @@
-use glm::Matrix4x3;
-use glm::Vector2;
-use glm::Vector3;
+use super::nalgebra_glm::Mat3x4;
+use super::nalgebra_glm::Vec2;
+use super::nalgebra_glm::IVec2;
+use super::nalgebra_glm::Vec3;
 
-pub type Color = Vector3<f32>;
-pub type Normal = Vector3<f32>;
-pub type Position = Vector3<f32>;
-pub type Direction = Vector3<f32>;
-pub type Barycentrics = Vector2<f32>;
-pub type FragCoord = Vector2<u32>;
-pub type TextureCoordinate = Vector2<f32>;
-pub type Transform = Matrix4x3<f32>;
+pub type Color = Vec3;
+pub type Normal = Vec3;
+pub type Position = Vec3;
+pub type Direction = Vec3;
+pub type Barycentrics = Vec2;
+pub type FragCoord = IVec2;
+pub type TextureCoordinate = Vec2;
+pub type Transform = Mat3x4;

@@ -1,7 +1,6 @@
 use super::acceleration_structure::*;
 use super::intersection::*;
 use super::ray::*;
-use super::scene::*;
 use super::types::*;
 
 pub trait RayTracer<Context> {

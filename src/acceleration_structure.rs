@@ -7,17 +7,89 @@ use super::scene::*;
 use super::types::Position;
 use std::sync::Arc;
 
-struct AccelerationStructureNode {
-    left: Arc<dyn Hittable + Send + Sync>,
-    right: Arc<dyn Hittable + Send + Sync>,
+trait Node {
+    fn hit_test(&self, ray: &Ray, t_min: f32, t_max: f32) -> Option<u32>;
+}
+
+struct Branch {
+    left: Arc<dyn Node>,
+    right: Arc<dyn Node>,
     bounding_box: BoundingBox,
+}
+
+impl Node for Branch {
+
+    fn hit_test(&self, ray: &Ray, t_min: f32, t_max: f32) -> std::option::Option<u32> { 
+        if !self.bounding_box.hit(ray, t_min, t_max){
+            None
+        } else {
+            if let Some(left_hit) = self.left.hit_test(ray, t_min, t_max) {
+                if let Some(right_hit) = self.right.hit_test(ray, t_min, t_max) {
+                    return Some(right_hit);
+                } else {
+                    return Some(left_hit);
+                }
+            } else {
+                return self.right.hit_test(ray, t_min, t_max);
+            }
+        }
+    }
+}
+
+struct Leaf {
+    id: u32,
+    bounding_box: BoundingBox,
+}
+
+impl Node for Leaf {
+
+    fn hit_test(&self, ray: &Ray, t_min: f32, t_max: f32) -> std::option::Option<u32> { 
+        if self.bounding_box.hit(ray, t_min, t_max){
+            Some(self.id)
+        } else {
+            None
+        }
+    }
+}
+
+impl Branch {
+    fn new(instances: &mut Vec<(u32, BoundingBox)>) -> Arc<dyn Node>{
+
+        let mut bounding_box = BoundingBox::new(&Position::new(0., 0., 0.), &Position::new(0., 0., 0.));
+        for (_, bb) in instances.iter() {
+            bounding_box = BoundingBox::surrounding_box(&bounding_box, &bb);
+        }
+
+        let mid = instances.len() / 2;
+        let (left_instances, right_instances) = instances.split_at_mut(mid);
+        let left = Self::from_slice(left_instances);
+        let right = Self::from_slice(right_instances);
+        Arc::new(Self{left, right, bounding_box})
+    }
+
+    fn from_slice(slice: &mut [(u32, BoundingBox)]) -> Arc<dyn Node> {
+        let mut bounding_box = BoundingBox::new(&Position::new(0., 0., 0.), &Position::new(0., 0., 0.));
+        for (_, bb) in slice.iter() {
+            bounding_box = BoundingBox::surrounding_box(&bounding_box, &bb);
+        }
+
+        if slice.len() == 1 {
+            return Arc::new(Leaf{id: slice[0].0, bounding_box: slice[0].1})
+        }
+
+        let mid = slice.len() / 2;
+        let (left_instances, right_instances) = slice.split_at_mut(mid);
+        let left = Self::from_slice(left_instances);
+        let right = Self::from_slice(right_instances);
+        Arc::new(Self{left, right, bounding_box})
+    }
 }
 
 pub struct AccelerationStructV2 {
     hittables: Vec<Arc<dyn Hittable + Send + Sync>>,
     instances: Vec<Instance>,
     bounding_box: BoundingBox,
-    //root_node: AccelerationStructureNode,
+    root_node: Arc<dyn Node>,
 }
 
 impl AccelerationStructV2 {
@@ -32,8 +104,8 @@ impl AccelerationStructV2 {
         // collect bounding boxes and id's
         for instance in instances.iter() {
             id_and_bb.push((
-                instance.object_id,
-                geometry[instance.object_id as usize]
+                instance.instance_id,
+                geometry[instance.geometry_index as usize]
                     .bounding_box()
                     .unwrap()
                     .transformed(&instance.transform),
@@ -50,11 +122,18 @@ impl AccelerationStructV2 {
             bounding_box = BoundingBox::surrounding_box(&bounding_box, &bb);
         }
 
+        let root_node = Branch::new(&mut id_and_bb);
+
         Self {
             hittables: geometry,
             instances: geometry_instances,
             bounding_box,
+            root_node,
         }
+    }
+
+    pub fn intersect_instance(&self, ray: &Ray, t_min: f32, t_max: f32) -> Option<u32> {
+        self.root_node.hit_test(ray, t_min, t_max)
     }
 }
 

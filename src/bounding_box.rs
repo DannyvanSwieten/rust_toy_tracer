@@ -1,4 +1,4 @@
-use super::glm::builtin::*;
+use super::nalgebra_glm::*;
 use super::ray::*;
 use super::types::*;
 
@@ -17,10 +17,10 @@ impl BoundingBox {
     }
 
     pub fn transformed(&self, transform: &Transform) -> Self {
-        let min = *transform * glm::Vector4::<f32>::new(self.min.x, self.min.y, self.min.z, 1.);
-        let max = *transform * glm::Vector4::<f32>::new(self.max.x, self.max.y, self.max.z, 1.);
+        let min = *transform * Position::new(self.min.x, self.min.y, self.min.z);
+        let max = *transform * Position::new(self.max.x, self.max.y, self.max.z);
 
-        Self::new(&min, &max)
+        Self::new(&min.xyz(), &max.xyz())
     }
 
     pub fn min(&self) -> &Position {
@@ -32,8 +32,8 @@ impl BoundingBox {
     }
 
     pub fn surrounding_box(a: &BoundingBox, b: &BoundingBox) -> Self {
-        let small = min(a.min, b.min);
-        let big = max(a.max, b.max);
+        let small = min(&a.min, &b.min);
+        let big = max(&a.max, &b.max);
 
         BoundingBox::new(&small, &big)
     }
