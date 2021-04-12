@@ -16,12 +16,14 @@ impl BoundingBox {
         }
     }
 
-    // pub fn transformed(&self, transform: &Transform) -> Self {
-    //     let min = *transform * Position::from_values(&[self.min.x(), self.min.y(), self.min.z()]);
-    //     let max = *transform * Position::from_values(&[self.max.x(), self.max.y(), self.max.z()]);
+    pub fn transformed(&self, transform: &Transform) -> Self {
+        todo!("Not implemented");
 
-    //     Self::new(&min.xyz(), &max.xyz())
-    // }
+        let min = Position::from_values(&[self.min.x(), self.min.y(), self.min.z()]);
+        let max = Position::from_values(&[self.max.x(), self.max.y(), self.max.z()]);
+
+        Self::new(&min, &max)
+    }
 
     pub fn min(&self) -> &Position {
         &self.min

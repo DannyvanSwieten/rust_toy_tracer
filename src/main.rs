@@ -14,6 +14,8 @@ pub mod vec_div;
 pub mod vec_mul;
 pub mod vec_sub;
 
+pub mod mat;
+
 use std::sync::mpsc;
 use std::sync::mpsc::{Receiver, Sender};
 use std::sync::Arc;
@@ -31,8 +33,7 @@ use types::*;
 use vec::*;
 
 use image; // 0.23.14
-use image::imageops::*;
-use image::{GenericImage, GenericImageView, Rgb, RgbImage};
+use image::{Rgb, RgbImage};
 
 fn degrees_to_radians(degrees: f32) -> f32 {
     degrees * std::f32::consts::PI / 180.

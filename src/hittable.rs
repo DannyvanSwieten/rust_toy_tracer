@@ -3,7 +3,6 @@ use super::intersection::*;
 use super::ray::*;
 use super::types::*;
 use super::vec::*;
-use super::vec_sub::*;
 
 pub trait Hittable {
     fn intersect(&self, ray: &Ray, t_min: f32, t_max: f32) -> Option<Intersection>;

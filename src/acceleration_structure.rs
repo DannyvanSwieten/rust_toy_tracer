@@ -127,7 +127,7 @@ impl AccelerationStructV2 {
         }
 
         // sort them on x-axis (arbitrary axis)
-        id_and_bb.sort_by(|(id, bb), (id2, bb2)| bb.min().x().partial_cmp(&bb2.max().x()).unwrap());
+        id_and_bb.sort_by(|(_, bb), (_, bb2)| bb.min().x().partial_cmp(&bb2.max().x()).unwrap());
         let mut bounding_box = BoundingBox::new(
             &Position::from_values(&[0., 0., 0.]),
             &Position::from_values(&[0., 0., 0.]),
