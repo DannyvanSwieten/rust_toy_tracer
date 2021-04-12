@@ -8,6 +8,11 @@ pub mod ray;
 pub mod raytracer;
 pub mod scene;
 pub mod types;
+pub mod vec;
+pub mod vec_add;
+pub mod vec_div;
+pub mod vec_mul;
+pub mod vec_sub;
 
 use std::sync::mpsc;
 use std::sync::mpsc::{Receiver, Sender};
@@ -23,9 +28,7 @@ use ray::*;
 use raytracer::*;
 use scene::*;
 use types::*;
-
-extern crate nalgebra_glm;
-use nalgebra_glm::*;
+use vec::*;
 
 use image; // 0.23.14
 use image::imageops::*;
@@ -64,7 +67,8 @@ impl CheckerTexture {
 
 impl Texture for CheckerTexture {
     fn sample(&self, uv: &TextureCoordinate, position: &Position) -> Color {
-        let sines = (position.x * 10.).sin() * (position.y * 10.).sin() * (position.z * 10.).sin();
+        let sines =
+            (position.x() * 10.).sin() * (position.y() * 10.).sin() * (position.z() * 10.).sin();
         if sines < 0. {
             self.odd.sample(uv, position)
         } else {
@@ -134,8 +138,8 @@ impl CameraSettings {
         let viewport_height = 2.0 * h;
         let viewport_width = aspect_ratio * viewport_height;
 
-        let w = normalize(&(origin - look_at));
-        let up = Direction::new(0., 1., 0.);
+        let w = normalize(&((*origin) - look_at));
+        let up = Direction::from_values(&[0., 1., 0.]);
         let u = cross(&up, &w);
         let v = cross(&w, &u);
 
@@ -223,9 +227,9 @@ impl<Context: Send + Sync> RayTracer<Context> for CPUTracer<Context> {
 
             for row in rx.try_iter() {
                 for (x, y, color) in row {
-                    let r = (color.x.sqrt() * 255.) as u8;
-                    let g = (color.y.sqrt() * 255.) as u8;
-                    let b = (color.z.sqrt() * 255.) as u8;
+                    let r = (color.x().sqrt() * 255.) as u8;
+                    let g = (color.y().sqrt() * 255.) as u8;
+                    let b = (color.z().sqrt() * 255.) as u8;
                     image.put_pixel(x, y, Rgb([r, g, b]))
                 }
             }
@@ -259,9 +263,9 @@ impl RayGenerationShader<MyContext> for RayGenerator {
         x: u32,
         y: u32,
     ) -> Color {
-        let mut color = Color::new(0., 0., 0.);
+        let mut color = Color::from_values(&[0., 0., 0.]);
         for _ in 0..context.spp {
-            let mut coefficient = Color::new(1., 1., 1.);
+            let mut coefficient = Color::from_values(&[1., 1., 1.]);
             let u = (x as f32 + rand_float()) / (width - 1) as f32;
             let v = (y as f32 + rand_float()) / (height - 1) as f32;
             let mut ray = self.camera.ray(u, 1. - v);
@@ -272,12 +276,13 @@ impl RayGenerationShader<MyContext> for RayGenerator {
                         let p = ray.at(hit.t);
                         ray = Ray::new(&p, &bounce.out_dir);
                     } else {
-                        coefficient = Color::new(0., 0., 0.);
+                        coefficient = Color::from_values(&[0., 0., 0.]);
                         break;
                     }
                 } else {
-                    let d = 0.5 * ray.dir.y + 1.;
-                    let c = Color::new(1.0, 1.0, 1.0) * (1.0 - d) + Color::new(0.5, 0.7, 1.0) * d;
+                    let d = 0.5 * ray.dir.y() + 1.;
+                    let c = Color::from_values(&[1.0, 1.0, 1.0]) * (1.0 - d)
+                        + Color::from_values(&[0.5, 0.7, 1.0]) * d;
                     coefficient *= c;
                     break;
                 }
@@ -304,8 +309,8 @@ fn main() {
     let height = 480;
     let mut scene = Scene::new();
     let camera = CameraSettings::new(
-        &Position::new(0., 2., 13.),
-        &Direction::new(0., 2., 0.),
+        &Position::from_values(&[0., 2., 13.]),
+        &Direction::from_values(&[0., 2., 0.]),
         16. / 9.,
         65.,
     );
@@ -317,46 +322,45 @@ fn main() {
 
     ctx.materials.push(Arc::new(DiffuseMaterial::new(Arc::new(
         CheckerTexture::new(
-            Arc::new(SolidColorTexture::new(&Color::new(1., 1., 1.))),
-            Arc::new(SolidColorTexture::new(&Color::new(0., 0., 0.))),
+            Arc::new(SolidColorTexture::new(&Color::from_values(&[1., 1., 1.]))),
+            Arc::new(SolidColorTexture::new(&Color::from_values(&[0., 0., 0.]))),
         ),
     ))));
 
     ctx.materials.push(Arc::new(DiffuseMaterial::new(Arc::new(
-        SolidColorTexture::new(&Color::new(1., 0., 1.)),
+        SolidColorTexture::new(&Color::from_values(&[1., 0., 1.])),
     ))));
 
     ctx.materials.push(Arc::new(DiffuseMaterial::new(Arc::new(
-        SolidColorTexture::new(&Color::new(1., 1., 1.)),
+        SolidColorTexture::new(&Color::from_values(&[1., 1., 1.])),
     ))));
 
     ctx.materials.push(Arc::new(MirrorMaterial::new(Arc::new(
-        SolidColorTexture::new(&Color::new(1., 1., 1.)),
+        SolidColorTexture::new(&Color::from_values(&[1., 1., 1.])),
     ))));
 
-    let mut geometry = Vec::new();
+    //let mut geometry = Vec::new();
 
     // Floor
-    geometry.push(Arc::new(Sphere::new(
+    scene.add_hittable(Arc::new(Sphere::new(
         1000.,
-        &Position::new(0., -1000., 0.),
+        &Position::from_values(&[0., -1000., 0.]),
         0,
     )));
 
     for _ in 0..30 {
-        geometry.push(Arc::new(Sphere::new(
+        scene.add_hittable(Arc::new(Sphere::new(
             rand_range(0.5, 1.),
-            &Position::new(
+            &Position::from_values(&[
                 rand_range(-10., 10.),
                 rand_range(1., 10.),
                 rand_range(2., 10.),
-            ),
+            ]),
             rand_range(0., 4.) as u32,
         )));
     }
 
     //let mut instances = Vec::new();
-
 
     let acc = AccelerationStructure::new(&scene);
     let tracer = CPUTracer::new(Arc::new(RayGenerator { camera: camera }));

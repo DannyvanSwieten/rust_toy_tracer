@@ -1,6 +1,6 @@
-use rand::Rng;
 use super::types::*;
-use super::nalgebra_glm::*;
+use super::vec::*;
+use rand::Rng;
 
 pub fn rand_float() -> f32 {
     let mut rng = rand::thread_rng();
@@ -11,16 +11,16 @@ pub fn rand_range(min: f32, max: f32) -> f32 {
     min + (max - min) * rand_float()
 }
 
-pub fn rand_vec() -> Vec3{
-    Vec3::new(rand_float(), rand_float(), rand_float())
+pub fn rand_vec() -> Vec3 {
+    Vec3::from_values(&[rand_float(), rand_float(), rand_float()])
 }
 
 pub fn rand_vec_range(min: f32, max: f32) -> Vec3 {
-    Vec3::new(
+    Vec3::from_values(&[
         rand_range(min, max),
         rand_range(min, max),
         rand_range(min, max),
-    )
+    ])
 }
 
 pub fn rand_sphere() -> Position {

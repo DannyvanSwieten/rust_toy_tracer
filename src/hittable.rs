@@ -2,7 +2,8 @@ use super::bounding_box::*;
 use super::intersection::*;
 use super::ray::*;
 use super::types::*;
-use super::nalgebra_glm::*;
+use super::vec::*;
+use super::vec_sub::*;
 
 pub trait Hittable {
     fn intersect(&self, ray: &Ray, t_min: f32, t_max: f32) -> Option<Intersection>;
@@ -57,16 +58,16 @@ impl Hittable for Sphere {
             &ray.dir,
             root,
             &n,
-            &TextureCoordinate::new(0., 0.),
+            &TextureCoordinate::from_values(&[0., 0.]),
             0,
             0,
             0,
             self.material_id,
-            &Barycentrics::new(0., 0.),
+            &Barycentrics::from_values(&[0., 0.]),
         ));
     }
     fn bounding_box(&self) -> std::option::Option<BoundingBox> {
-        let r = Position::new(self.radius, self.radius, self.radius);
+        let r = Position::from_values(&[self.radius, self.radius, self.radius]);
         Some(BoundingBox::new(&(self.position - r), &(self.position + r)))
     }
 }
@@ -80,8 +81,8 @@ pub struct TriangleMesh {
 
 impl Hittable for TriangleMesh {
     fn bounding_box(&self) -> Option<BoundingBox> {
-        let mut min_p = Position::new(std::f32::MIN, std::f32::MIN, std::f32::MIN);
-        let mut max_p = Position::new(std::f32::MAX, std::f32::MAX, std::f32::MAX);
+        let mut min_p = Position::from_values(&[std::f32::MIN, std::f32::MIN, std::f32::MIN]);
+        let mut max_p = Position::from_values(&[std::f32::MAX, std::f32::MAX, std::f32::MAX]);
         for p in self.positions.iter() {
             min_p = min(&min_p, p);
             max_p = max(&max_p, p);

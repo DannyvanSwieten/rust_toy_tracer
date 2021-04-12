@@ -3,7 +3,6 @@ use super::hittable::*;
 use super::intersection::*;
 use super::ray::*;
 use super::types::*;
-use super::nalgebra_glm::Vec4;
 use std::sync::Arc;
 
 #[derive(Copy, Clone)]
@@ -11,15 +10,15 @@ pub struct Instance {
     pub geometry_index: u32,
     pub instance_id: u32,
     pub hit_shader_id: u32,
-    pub transform: Transform,
+    //pub transform: Transform,
 }
 
 impl Instance {
     // fn new(geometry_index: u32, instance_id: u32) -> Self {
     //     Self{
-    //         geometry_index, 
+    //         geometry_index,
     //         instance_id,
-    //         hit_shader_id: 0, 
+    //         hit_shader_id: 0,
     //         transform: Transform::new(
     //             Vec4::new(1., 0., 0., 0.),
     //             Vec4::new(0., 1., 0., 0.),

@@ -5,6 +5,7 @@ use super::rand_float::rand_range;
 use super::ray::*;
 use super::scene::*;
 use super::types::Position;
+use super::vec::*;
 use std::sync::Arc;
 
 trait Node {
@@ -18,9 +19,8 @@ struct Branch {
 }
 
 impl Node for Branch {
-
-    fn hit_test(&self, ray: &Ray, t_min: f32, t_max: f32) -> std::option::Option<u32> { 
-        if !self.bounding_box.hit(ray, t_min, t_max){
+    fn hit_test(&self, ray: &Ray, t_min: f32, t_max: f32) -> std::option::Option<u32> {
+        if !self.bounding_box.hit(ray, t_min, t_max) {
             None
         } else {
             if let Some(left_hit) = self.left.hit_test(ray, t_min, t_max) {
@@ -42,9 +42,8 @@ struct Leaf {
 }
 
 impl Node for Leaf {
-
-    fn hit_test(&self, ray: &Ray, t_min: f32, t_max: f32) -> std::option::Option<u32> { 
-        if self.bounding_box.hit(ray, t_min, t_max){
+    fn hit_test(&self, ray: &Ray, t_min: f32, t_max: f32) -> std::option::Option<u32> {
+        if self.bounding_box.hit(ray, t_min, t_max) {
             Some(self.id)
         } else {
             None
@@ -53,9 +52,11 @@ impl Node for Leaf {
 }
 
 impl Branch {
-    fn new(instances: &mut Vec<(u32, BoundingBox)>) -> Arc<dyn Node>{
-
-        let mut bounding_box = BoundingBox::new(&Position::new(0., 0., 0.), &Position::new(0., 0., 0.));
+    fn new(instances: &mut Vec<(u32, BoundingBox)>) -> Arc<dyn Node> {
+        let mut bounding_box = BoundingBox::new(
+            &Position::from_values(&[0., 0., 0.]),
+            &Position::from_values(&[0., 0., 0.]),
+        );
         for (_, bb) in instances.iter() {
             bounding_box = BoundingBox::surrounding_box(&bounding_box, &bb);
         }
@@ -64,24 +65,38 @@ impl Branch {
         let (left_instances, right_instances) = instances.split_at_mut(mid);
         let left = Self::from_slice(left_instances);
         let right = Self::from_slice(right_instances);
-        Arc::new(Self{left, right, bounding_box})
+        Arc::new(Self {
+            left,
+            right,
+            bounding_box,
+        })
     }
 
     fn from_slice(slice: &mut [(u32, BoundingBox)]) -> Arc<dyn Node> {
-        let mut bounding_box = BoundingBox::new(&Position::new(0., 0., 0.), &Position::new(0., 0., 0.));
+        let mut bounding_box = BoundingBox::new(
+            &Position::from_values(&[0., 0., 0.]),
+            &Position::from_values(&[0., 0., 0.]),
+        );
         for (_, bb) in slice.iter() {
             bounding_box = BoundingBox::surrounding_box(&bounding_box, &bb);
         }
 
         if slice.len() == 1 {
-            return Arc::new(Leaf{id: slice[0].0, bounding_box: slice[0].1})
+            return Arc::new(Leaf {
+                id: slice[0].0,
+                bounding_box: slice[0].1,
+            });
         }
 
         let mid = slice.len() / 2;
         let (left_instances, right_instances) = slice.split_at_mut(mid);
         let left = Self::from_slice(left_instances);
         let right = Self::from_slice(right_instances);
-        Arc::new(Self{left, right, bounding_box})
+        Arc::new(Self {
+            left,
+            right,
+            bounding_box,
+        })
     }
 }
 
@@ -107,15 +122,16 @@ impl AccelerationStructV2 {
                 instance.instance_id,
                 geometry[instance.geometry_index as usize]
                     .bounding_box()
-                    .unwrap()
-                    .transformed(&instance.transform),
+                    .unwrap(), //.transformed(&instance.transform),
             ))
         }
 
         // sort them on x-axis (arbitrary axis)
-        id_and_bb.sort_by(|a, b| a.1.min().x.partial_cmp(&b.1.max().x).unwrap());
-        let mut bounding_box =
-            BoundingBox::new(&Position::new(0., 0., 0.), &Position::new(0., 0., 0.));
+        id_and_bb.sort_by(|(id, bb), (id2, bb2)| bb.min().x().partial_cmp(&bb2.max().x()).unwrap());
+        let mut bounding_box = BoundingBox::new(
+            &Position::from_values(&[0., 0., 0.]),
+            &Position::from_values(&[0., 0., 0.]),
+        );
 
         // calculate the bounding box of the entire structure.
         for (_, bb) in id_and_bb.iter() {
@@ -194,8 +210,8 @@ impl AccelerationStructure {
                 a.bounding_box()
                     .unwrap()
                     .min()
-                    .x
-                    .partial_cmp(&b.bounding_box().unwrap().max().x)
+                    .x()
+                    .partial_cmp(&b.bounding_box().unwrap().max().x())
                     .unwrap()
             });
         } else if r == 1 {
@@ -203,8 +219,8 @@ impl AccelerationStructure {
                 a.bounding_box()
                     .unwrap()
                     .min()
-                    .y
-                    .partial_cmp(&b.bounding_box().unwrap().max().y)
+                    .y()
+                    .partial_cmp(&b.bounding_box().unwrap().max().y())
                     .unwrap()
             });
         } else {
@@ -212,8 +228,8 @@ impl AccelerationStructure {
                 a.bounding_box()
                     .unwrap()
                     .min()
-                    .z
-                    .partial_cmp(&b.bounding_box().unwrap().max().z)
+                    .z()
+                    .partial_cmp(&b.bounding_box().unwrap().max().z())
                     .unwrap()
             });
         }
@@ -264,8 +280,8 @@ impl AccelerationStructure {
                     a.bounding_box()
                         .unwrap()
                         .min()
-                        .x
-                        .partial_cmp(&b.bounding_box().unwrap().max().x)
+                        .x()
+                        .partial_cmp(&b.bounding_box().unwrap().max().x())
                         .unwrap()
                 });
             } else if r == 1 {
@@ -273,8 +289,8 @@ impl AccelerationStructure {
                     a.bounding_box()
                         .unwrap()
                         .min()
-                        .y
-                        .partial_cmp(&b.bounding_box().unwrap().max().y)
+                        .y()
+                        .partial_cmp(&b.bounding_box().unwrap().max().y())
                         .unwrap()
                 });
             } else {
@@ -282,8 +298,8 @@ impl AccelerationStructure {
                     a.bounding_box()
                         .unwrap()
                         .min()
-                        .z
-                        .partial_cmp(&b.bounding_box().unwrap().max().z)
+                        .z()
+                        .partial_cmp(&b.bounding_box().unwrap().max().z())
                         .unwrap()
                 });
             }

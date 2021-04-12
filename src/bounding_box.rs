@@ -1,6 +1,6 @@
-use super::nalgebra_glm::*;
 use super::ray::*;
 use super::types::*;
+use super::vec::*;
 
 #[derive(Copy, Clone)]
 pub struct BoundingBox {
@@ -16,12 +16,12 @@ impl BoundingBox {
         }
     }
 
-    pub fn transformed(&self, transform: &Transform) -> Self {
-        let min = *transform * Position::new(self.min.x, self.min.y, self.min.z);
-        let max = *transform * Position::new(self.max.x, self.max.y, self.max.z);
+    // pub fn transformed(&self, transform: &Transform) -> Self {
+    //     let min = *transform * Position::from_values(&[self.min.x(), self.min.y(), self.min.z()]);
+    //     let max = *transform * Position::from_values(&[self.max.x(), self.max.y(), self.max.z()]);
 
-        Self::new(&min.xyz(), &max.xyz())
-    }
+    //     Self::new(&min.xyz(), &max.xyz())
+    // }
 
     pub fn min(&self) -> &Position {
         &self.min
