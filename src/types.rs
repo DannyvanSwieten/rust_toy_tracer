@@ -1,6 +1,7 @@
 use super::mat::*;
 use super::vec::*;
 
+pub type Vec4 = Vector<4>;
 pub type Vec3 = Vector<3>;
 pub type Vec2 = Vector<2>;
 pub type Mat3x4 = Matrix<3, 4>;

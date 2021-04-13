@@ -1,9 +1,11 @@
+extern crate num_cpus;
+
 pub mod acceleration_structure;
 pub mod bounding_box;
 pub mod hittable;
 pub mod intersection;
 pub mod material;
-pub mod rand_float;
+pub mod rand;
 pub mod ray;
 pub mod raytracer;
 pub mod scene;
@@ -20,12 +22,12 @@ use std::sync::mpsc;
 use std::sync::mpsc::{Receiver, Sender};
 use std::sync::Arc;
 
+use ::rand::*;
 use acceleration_structure::*;
 use crossbeam::thread;
 use hittable::*;
 use intersection::*;
 use material::*;
-use rand_float::*;
 use ray::*;
 use raytracer::*;
 use scene::*;
@@ -58,18 +60,28 @@ impl Texture for SolidColorTexture {
 pub struct CheckerTexture {
     even: Arc<dyn Texture + Send + Sync>,
     odd: Arc<dyn Texture + Send + Sync>,
+    frequency: f32,
 }
 
 impl CheckerTexture {
-    fn new(even: Arc<dyn Texture + Send + Sync>, odd: Arc<dyn Texture + Send + Sync>) -> Self {
-        Self { even, odd }
+    fn new(
+        even: Arc<dyn Texture + Send + Sync>,
+        odd: Arc<dyn Texture + Send + Sync>,
+        frequency: f32,
+    ) -> Self {
+        Self {
+            even,
+            odd,
+            frequency,
+        }
     }
 }
 
 impl Texture for CheckerTexture {
     fn sample(&self, uv: &TextureCoordinate, position: &Position) -> Color {
-        let sines =
-            (position.x() * 10.).sin() * (position.y() * 10.).sin() * (position.z() * 10.).sin();
+        let sines = (position.x() * self.frequency).sin()
+            * (position.y() * self.frequency).sin()
+            * (position.z() * self.frequency).sin();
         if sines < 0. {
             self.odd.sample(uv, position)
         } else {
@@ -89,10 +101,16 @@ impl DiffuseMaterial {
 }
 
 impl Material for DiffuseMaterial {
-    fn brdf(&self, surface: &Intersection) -> Option<Bounce> {
+    fn wi(
+        &self,
+        position: &Position,
+        wo: &Direction,
+        normal: &Direction,
+        uv: &TextureCoordinate,
+    ) -> Option<Bounce> {
         Some(Bounce {
-            color: self.albedo.sample(&surface.uv, &surface.position) / std::f32::consts::PI,
-            out_dir: surface.normal + rand_sphere(),
+            color: self.albedo.sample(&uv, &position) / std::f32::consts::PI,
+            out_dir: *normal + rand::sphere(),
         })
     }
     fn pdf(&self, _: &Intersection) -> f32 {
@@ -105,10 +123,16 @@ pub struct MirrorMaterial {
 }
 
 impl Material for MirrorMaterial {
-    fn brdf(&self, surface: &Intersection) -> Option<Bounce> {
+    fn wi(
+        &self,
+        position: &Position,
+        wo: &Direction,
+        normal: &Direction,
+        uv: &TextureCoordinate,
+    ) -> Option<Bounce> {
         Some(Bounce {
-            color: self.albedo.sample(&surface.uv, &surface.position),
-            out_dir: reflect(&surface.in_direction, &surface.normal),
+            color: self.albedo.sample(&uv, &position),
+            out_dir: reflect(&wo, &normal),
         })
     }
     fn pdf(&self, _: &Intersection) -> f32 {
@@ -127,9 +151,6 @@ pub struct CameraSettings {
     left_corner: Position,
     horizontal: Direction,
     vertical: Direction,
-    u: Direction,
-    v: Direction,
-    w: Direction,
 }
 
 impl CameraSettings {
@@ -152,9 +173,6 @@ impl CameraSettings {
             left_corner,
             horizontal,
             vertical,
-            u,
-            v,
-            w,
         }
     }
 
@@ -180,7 +198,7 @@ impl<Context> CPUTracer<Context> {
 
 impl<Context: Send + Sync> RayTracer<Context> for CPUTracer<Context> {
     fn trace(&self, context: &Context, width: u32, height: u32, scene: &AccelerationStructure) {
-        let thread_count: u32 = 64;
+        let thread_count = num_cpus::get() as u32;
         let mut image = RgbImage::new(width, height);
         let (tx, rx): (
             Sender<Vec<(u32, u32, Color)>>,
@@ -244,8 +262,28 @@ impl<Context: Send + Sync> RayTracer<Context> for CPUTracer<Context> {
         _: &Context,
         scene: &AccelerationStructure,
         ray: &Ray,
-    ) -> Option<Intersection> {
-        scene.intersect(ray, 0.01, 1000.)
+    ) -> Option<(u32, Intersection)> {
+        let results = scene.intersect_instance(ray, 0.01, 1000.);
+        if results.len() > 0 {
+            let mut closest = None;
+            let mut t: f32 = 1001.;
+            for id in results.iter() {
+                let instance = scene.instance(*id as usize);
+                if let Some(intersection) = scene
+                    .geometry(instance.geometry_index as usize)
+                    .intersect(&instance.transform, ray, 0.01, 1000.)
+                {
+                    if intersection.t < t {
+                        t = intersection.t;
+                        closest = Some((instance.instance_id, intersection));
+                    }
+                }
+            }
+
+            return closest;
+        }
+
+        None
     }
 }
 
@@ -267,15 +305,24 @@ impl RayGenerationShader<MyContext> for RayGenerator {
         let mut color = Color::from_values(&[0., 0., 0.]);
         for _ in 0..context.spp {
             let mut coefficient = Color::from_values(&[1., 1., 1.]);
-            let u = (x as f32 + rand_float()) / (width - 1) as f32;
-            let v = (y as f32 + rand_float()) / (height - 1) as f32;
+            let u = (x as f32 + rand::float()) / (width - 1) as f32;
+            let v = (y as f32 + rand::float()) / (height - 1) as f32;
             let mut ray = self.camera.ray(u, 1. - v);
             for _ in 0..context.max_depth {
-                if let Some(hit) = ray_tracer.intersect(context, scene, &ray) {
-                    if let Some(bounce) = context.materials[hit.material_id as usize].brdf(&hit) {
+                if let Some((instance_id, hit)) = ray_tracer.intersect(context, scene, &ray) {
+                    let instance = scene.instance(instance_id as usize);
+                    let geometry = scene.geometry(instance.geometry_index as usize);
+                    let material_id = context.material_ids[instance.instance_id as usize];
+                    let material = &context.materials[material_id as usize];
+                    let normal = geometry.normal(&instance.transform, &hit);
+                    let uv = geometry.uv(&instance.transform, &hit);
+
+                    if let Some(bounce) =
+                        material.wi(&hit.position, &hit.in_direction, &normal, &uv)
+                    {
                         coefficient = coefficient * bounce.color;
                         let p = ray.at(hit.t);
-                        ray = Ray::new(&p, &bounce.out_dir);
+                        ray = Ray::new(&(p + normal * 0.05), &bounce.out_dir);
                     } else {
                         coefficient = Color::from_values(&[0., 0., 0.]);
                         break;
@@ -294,8 +341,6 @@ impl RayGenerationShader<MyContext> for RayGenerator {
 
         color = color / context.spp as f32;
         color
-
-        //context.output_image.put_pixel(x, y, Rgb([r, g, b]));
     }
 }
 
@@ -303,28 +348,30 @@ struct MyContext {
     spp: u32,
     max_depth: u32,
     materials: Vec<Arc<dyn Material + Send + Sync>>,
+    material_ids: Vec<u32>,
 }
 
 fn main() {
-    let width = 720;
-    let height = 480;
-    let mut scene = Scene::new();
+    let width = 1920;
+    let height = 1080;
     let camera = CameraSettings::new(
         &Position::from_values(&[0., 2., 13.]),
-        &Direction::from_values(&[0., 2., 0.]),
+        &Direction::from_values(&[0., 0., 0.]),
         16. / 9.,
         65.,
     );
     let mut ctx = MyContext {
-        spp: 64,
-        max_depth: 16,
+        spp: 16,
+        max_depth: 8,
         materials: Vec::new(),
+        material_ids: Vec::new(),
     };
 
     ctx.materials.push(Arc::new(DiffuseMaterial::new(Arc::new(
         CheckerTexture::new(
             Arc::new(SolidColorTexture::new(&Color::from_values(&[1., 1., 1.]))),
             Arc::new(SolidColorTexture::new(&Color::from_values(&[0., 0., 0.]))),
+            3.,
         ),
     ))));
 
@@ -340,31 +387,84 @@ fn main() {
         SolidColorTexture::new(&Color::from_values(&[1., 1., 1.])),
     ))));
 
-    //let mut geometry = Vec::new();
+    let mut geometry: Vec<Arc<dyn Hittable + Send + Sync>> = Vec::new();
 
-    // Floor
-    scene.add_hittable(Arc::new(Sphere::new(
-        1000.,
-        &Position::from_values(&[0., -1000., 0.]),
+    let obj_file = "./assets/cube_rounded.obj";
+    let (models, _) = tobj::load_obj(&obj_file, false).expect("Failed to load file");
+
+    let mut positions = Vec::new();
+    let mut normals = Vec::new();
+    let mut tex_coords = Vec::new();
+    let mut indices: Vec<u32> = Vec::new();
+
+    for (_, m) in models.iter().enumerate() {
+        let mesh = &m.mesh;
+
+        indices.extend(mesh.indices.iter());
+
+        for v in 0..mesh.positions.len() / 3 {
+            positions.push(Position::from_values(&[
+                mesh.positions[3 * v],
+                mesh.positions[3 * v + 1],
+                mesh.positions[3 * v + 2],
+            ]))
+        }
+
+        for n in 0..mesh.normals.len() / 3 {
+            normals.push(Normal::from_values(&[
+                mesh.normals[3 * n],
+                mesh.normals[3 * n + 1],
+                mesh.normals[3 * n + 2],
+            ]))
+        }
+
+        for n in 0..mesh.texcoords.len() / 3 {
+            tex_coords.push(TextureCoordinate::from_values(&[
+                mesh.texcoords[3 * n],
+                mesh.texcoords[3 * n + 1],
+            ]))
+        }
+    }
+
+    geometry.push(Arc::new(Sphere::new(
+        1.,
+        &Position::from_values(&[0., 0., 0.]),
         0,
     )));
 
-    for _ in 0..30 {
-        scene.add_hittable(Arc::new(Sphere::new(
-            rand_range(0.5, 1.),
-            &Position::from_values(&[
-                rand_range(-10., 10.),
-                rand_range(1., 10.),
-                rand_range(2., 10.),
-            ]),
-            rand_range(0., 4.) as u32,
-        )));
+    geometry.push(Arc::new(TriangleMesh::new(
+        positions, normals, tex_coords, indices,
+    )));
+
+    let mut instances = Vec::new();
+    // Floor
+    instances.push(
+        Instance::new(0, 0)
+            .with_position(0., -1001., 0.)
+            .with_scale(1000., 1000., 1000.),
+    );
+    // Checker
+    ctx.material_ids.push(0);
+    // Teapot
+    instances.push(Instance::new(1, 1).with_position(0., 0., 0.));
+    // Purple
+    ctx.material_ids.push(2);
+
+    for i in 2..100 {
+        let x = rand::float_range(-10., 10.).floor();
+        let y = rand::float_range(0., 10.).floor();
+        let z = rand::float_range(1., 5.).floor();
+        let s = rand::float_range(0.25, 1.25);
+        instances.push(
+            Instance::new(0, i)
+                .with_position(x, y, z)
+                .with_scale(s, s, s),
+        );
+        ctx.material_ids.push(rand::int_range(0, 4));
     }
 
-    //let mut instances = Vec::new();
-
-    let acc = AccelerationStructure::new(&scene);
+    let ac = AccelerationStructure::new(&geometry, &instances);
     let tracer = CPUTracer::new(Arc::new(RayGenerator { camera: camera }));
 
-    tracer.trace(&ctx, width, height, &acc);
+    tracer.trace(&ctx, width, height, &ac);
 }

@@ -17,10 +17,8 @@ impl BoundingBox {
     }
 
     pub fn transformed(&self, transform: &Transform) -> Self {
-        todo!("Not implemented");
-
-        let min = Position::from_values(&[self.min.x(), self.min.y(), self.min.z()]);
-        let max = Position::from_values(&[self.max.x(), self.max.y(), self.max.z()]);
+        let min = *transform * &Vec4::from(self.min);
+        let max = *transform * &Vec4::from(self.max);
 
         Self::new(&min, &max)
     }
@@ -40,19 +38,18 @@ impl BoundingBox {
         BoundingBox::new(&small, &big)
     }
 
-    pub fn hit(&self, ray: &Ray, t_min: f32, t_max: f32) -> bool {
+    pub fn hit(&self, ray: &Ray, mut t_min: f32, mut t_max: f32) -> bool {
         for a in 0..3 {
-            let inv_d = 1. / ray.direction()[a];
-            let mut t0 = (self.min[a] - ray.origin()[a]) * inv_d;
-            let mut t1 = (self.max[a] - ray.origin()[a]) * inv_d;
-            if inv_d < 0. {
+            let mut t0 = (self.min[a] - ray.origin()[a]) * ray.inv_direction()[a];
+            let mut t1 = (self.max[a] - ray.origin()[a]) * ray.inv_direction()[a];
+            if ray.inv_direction()[a] < 0. {
                 std::mem::swap(&mut t0, &mut t1)
             }
 
-            let min = if t0 > t_min { t0 } else { t_min };
-            let max = if t1 < t_max { t1 } else { t_max };
+            t_min = if t0 > t_min { t0 } else { t_min };
+            t_max = if t1 < t_max { t1 } else { t_max };
 
-            if max <= min {
+            if t_max <= t_min {
                 return false;
             }
         }

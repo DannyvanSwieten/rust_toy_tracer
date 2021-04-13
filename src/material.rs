@@ -7,7 +7,7 @@ pub struct Bounce {
 }
 
 pub trait Material {
-    fn brdf(&self, surface: &Intersection) -> Option<Bounce>;
+    fn wi(&self, position: &Position, wo: &Direction, normal: &Direction, uv: &TextureCoordinate) -> Option<Bounce>;
     fn pdf(&self, surface: &Intersection) -> f32;
 }
 

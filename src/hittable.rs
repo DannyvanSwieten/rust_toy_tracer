@@ -5,7 +5,16 @@ use super::types::*;
 use super::vec::*;
 
 pub trait Hittable {
-    fn intersect(&self, ray: &Ray, t_min: f32, t_max: f32) -> Option<Intersection>;
+    fn intersect(
+        &self,
+        object_to_world: &Transform,
+        ray: &Ray,
+        t_min: f32,
+        t_max: f32,
+    ) -> Option<Intersection>;
+
+    fn normal(&self, object_to_world: &Transform, intersection: &Intersection) -> Normal;
+    fn uv(&self, object_to_world: &Transform, intersection: &Intersection) -> TextureCoordinate;
     fn bounding_box(&self) -> Option<BoundingBox>;
 }
 
@@ -26,11 +35,18 @@ impl Sphere {
 }
 
 impl Hittable for Sphere {
-    fn intersect(&self, ray: &Ray, t_min: f32, t_max: f32) -> Option<Intersection> {
-        let oc = ray.origin - self.position;
+    fn intersect(
+        &self,
+        object_to_world: &Transform,
+        ray: &Ray,
+        t_min: f32,
+        t_max: f32,
+    ) -> Option<Intersection> {
+        let r = object_to_world.colums[0][0] * self.radius;
+        let oc = ray.origin - (*object_to_world * Vec4::from(self.position));
         let a = dot(&ray.dir, &ray.dir);
         let half_b = dot(&oc, &ray.dir);
-        let r2 = self.radius * self.radius;
+        let r2 = r * r;
         let c = dot(&oc, &oc) - r2;
 
         let discr = half_b * half_b - a * c;
@@ -48,23 +64,30 @@ impl Hittable for Sphere {
             }
         }
 
-        let p = ray.at(root);
-        let n = (p - self.position) / self.radius;
-        let n = if dot(&n, &ray.dir) < 0. { n } else { -n };
-
         return Some(Intersection::new(
-            &p,
+            &ray.at(root),
             &ray.dir,
             root,
-            &n,
-            &TextureCoordinate::from_values(&[0., 0.]),
             0,
-            0,
-            0,
-            self.material_id,
             &Barycentrics::from_values(&[0., 0.]),
         ));
     }
+
+    fn normal(&self, object_to_world: &Transform, intersection: &Intersection) -> Normal {
+        let r = object_to_world.colums[0][0] * self.radius;
+        let n = (intersection.position - (*object_to_world * Vec4::from(self.position))) / r;
+        let n = if dot(&n, &intersection.in_direction) < 0. {
+            n
+        } else {
+            -n
+        };
+        normalize(&n)
+    }
+
+    fn uv(&self, _: &Transform, intersection: &Intersection) -> TextureCoordinate {
+        TextureCoordinate::new()
+    }
+
     fn bounding_box(&self) -> std::option::Option<BoundingBox> {
         let r = Position::from_values(&[self.radius, self.radius, self.radius]);
         Some(BoundingBox::new(&(self.position - r), &(self.position + r)))
@@ -80,8 +103,8 @@ pub struct TriangleMesh {
 
 impl Hittable for TriangleMesh {
     fn bounding_box(&self) -> Option<BoundingBox> {
-        let mut min_p = Position::from_values(&[std::f32::MIN, std::f32::MIN, std::f32::MIN]);
-        let mut max_p = Position::from_values(&[std::f32::MAX, std::f32::MAX, std::f32::MAX]);
+        let mut min_p = Position::from_values(&[std::f32::MAX, std::f32::MAX, std::f32::MAX]);
+        let mut max_p = Position::from_values(&[std::f32::MIN, std::f32::MIN, std::f32::MIN]);
         for p in self.positions.iter() {
             min_p = min(&min_p, p);
             max_p = max(&max_p, p);
@@ -89,22 +112,99 @@ impl Hittable for TriangleMesh {
 
         Some(BoundingBox::new(&min_p, &max_p))
     }
-    fn intersect(&self, ray: &Ray, t_min: f32, t_max: f32) -> Option<Intersection> {
-        for i in self.indices.iter().step_by(3) {
-            let v0 = &self.positions[*i as usize];
-            let v1 = &self.positions[(*i + 1) as usize];
-            let v2 = &self.positions[(*i + 2) as usize];
 
-            if let Some(hit) = self.ray_triangle_intersect(ray, t_min, t_max, v0, v1, v2) {
-                return Some(hit);
+    fn intersect(
+        &self,
+        object_to_world: &Transform,
+        ray: &Ray,
+        t_min: f32,
+        t_max: f32,
+    ) -> Option<Intersection> {
+        for i in 0..self.indices.len() / 3 {
+            let index = i * 3;
+
+            let v0 = *object_to_world * &Vec4::from(self.positions[self.indices[index] as usize]);
+            let v1 =
+                *object_to_world * &Vec4::from(self.positions[self.indices[index + 1] as usize]);
+            let v2 =
+                *object_to_world * &Vec4::from(self.positions[self.indices[index + 2] as usize]);
+
+            if let Some((t, u, v)) = self.ray_triangle_intersect(ray, t_min, t_max, &v0, &v1, &v2) {
+                return Some(Intersection::new(
+                    &ray.at(t),
+                    ray.direction(),
+                    t,
+                    i as u32,
+                    &Barycentrics::from_values(&[u, v]),
+                ));
             }
         }
 
         None
     }
+    fn normal(&self, _: &Transform, intersection: &Intersection) -> Normal {
+        let i = intersection.primitive_id as usize;
+        let i0 = self.indices[i] as usize;
+        let i1 = self.indices[1 + i] as usize;
+        let i2 = self.indices[2 + i] as usize;
+        let n1 =
+            self.normals[i0] * (1. - intersection.barycentrics.x() - intersection.barycentrics.y());
+        let n2 = self.normals[i1] * intersection.barycentrics.x();
+        let n3 = self.normals[i2] * intersection.barycentrics.y();
+        let n = n1 + n2 + n3;
+        normalize(&n1)
+    }
+
+    fn uv(&self, _: &Transform, intersection: &Intersection) -> TextureCoordinate {
+        let i0 = self.indices[intersection.primitive_id as usize] as usize;
+        let i1 = self.indices[1 + intersection.primitive_id as usize] as usize;
+        let i2 = self.indices[2 + intersection.primitive_id as usize] as usize;
+
+        let t1 = self.tex_coords[i0]
+            * (1. - intersection.barycentrics.x() - intersection.barycentrics.y());
+        let t2 = self.tex_coords[i1] * intersection.barycentrics.x();
+        let t3 = self.tex_coords[i2] * intersection.barycentrics.y();
+        t1 + t2 + t3
+    }
 }
 
 impl TriangleMesh {
+    pub fn new(
+        positions: Vec<Position>,
+        mut normals: Vec<Normal>,
+        mut tex_coords: Vec<TextureCoordinate>,
+        indices: Vec<u32>,
+    ) -> Self {
+        if normals.len() == 0 {
+            normals.resize(positions.len(), Normal::new());
+            for i in 0..indices.len() / 3 {
+                let index = i * 3;
+
+                let v0 = &positions[indices[index] as usize];
+                let v1 = &positions[indices[index + 1] as usize];
+                let v2 = &positions[indices[index + 2] as usize];
+
+                let v1v0 = *v1 - v0;
+                let v2v0 = *v2 - v0;
+                let n = normalize(&cross(&v2v0, &v1v0));
+                normals[indices[index] as usize] = n;
+                normals[indices[index + 1] as usize] = n;
+                normals[indices[index + 2] as usize] = n;
+            }
+        }
+
+        if tex_coords.len() == 0 {
+            tex_coords.resize(positions.len(), TextureCoordinate::new())
+        }
+
+        Self {
+            positions,
+            normals,
+            tex_coords,
+            indices,
+        }
+    }
+
     fn ray_triangle_intersect(
         &self,
         ray: &Ray,
@@ -113,7 +213,30 @@ impl TriangleMesh {
         v0: &Position,
         v1: &Position,
         v2: &Position,
-    ) -> Option<Intersection> {
-        None
+    ) -> Option<(f32, f32, f32)> {
+        let v0v1 = *v1 - v0;
+        let v0v2 = *v2 - v0;
+        let pvec = cross(ray.direction(), &v0v2);
+        let det = dot(&v0v1, &pvec);
+
+        if det < 0.00001 {
+            return None;
+        }
+
+        let inv_det = 1. / det;
+        let tvec = *ray.origin() - v0;
+        let u = dot(&pvec, &tvec) * inv_det;
+        if u < 0. || u > 1. {
+            return None;
+        }
+
+        let qvec = cross(&tvec, &v0v1);
+        let v = dot(ray.direction(), &qvec) * inv_det;
+        if v < 0. || u + v > 1. {
+            return None;
+        }
+
+        let t = dot(&v0v2, &qvec) * inv_det;
+        Some((t, u, v))
     }
 }

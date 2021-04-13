@@ -2,6 +2,7 @@ use super::types::*;
 use super::vec_mul;
 
 #[derive(Copy, Clone)]
+#[repr(C)]
 pub struct Vector<const SIZE: usize> {
     pub data: [f32; SIZE],
 }
@@ -10,6 +11,12 @@ impl<const SIZE: usize> std::ops::Index<usize> for Vector<SIZE> {
     type Output = f32;
     fn index(&self, i: usize) -> &Self::Output {
         &self.data[i]
+    }
+}
+
+impl<const SIZE: usize> std::ops::IndexMut<usize> for Vector<SIZE> {
+    fn index_mut(&mut self, i: usize) -> &mut Self::Output {
+        &mut self.data[i]
     }
 }
 
@@ -108,5 +115,11 @@ impl<const SIZE: usize> ZAccessor for Vector<SIZE> {
 impl<const SIZE: usize> WAccessor for Vector<SIZE> {
     fn w(&self) -> f32 {
         self.data[3]
+    }
+}
+
+impl From<Vec3> for Vec4 {
+    fn from(v: Vec3) -> Self {
+        Vec4::from_values(&[v.x(), v.y(), v.z(), 1.])
     }
 }

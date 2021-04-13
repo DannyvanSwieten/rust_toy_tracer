@@ -4,6 +4,7 @@ use super::types::*;
 pub struct Ray {
     pub origin: Position,
     pub dir: Direction,
+    pub inv_dir: Direction,
 }
 
 impl Ray {
@@ -11,6 +12,7 @@ impl Ray {
         return Self {
             origin: *origin,
             dir: *direction,
+            inv_dir: Direction::from_values(&[1., 1., 1.]) / direction,
         };
     }
 
@@ -20,6 +22,10 @@ impl Ray {
 
     pub fn direction(&self) -> &Direction {
         &self.dir
+    }
+
+    pub fn inv_direction(&self) -> &Direction {
+        &self.inv_dir
     }
 
     pub fn at(&self, t: f32) -> Position {

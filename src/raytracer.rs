@@ -5,7 +5,12 @@ use super::types::*;
 
 pub trait RayTracer<Context> {
     fn trace(&self, context: &Context, width: u32, height: u32, scene: &AccelerationStructure);
-    fn intersect(&self, context: &Context, scene: &AccelerationStructure, ray: &Ray) -> Option<Intersection>;
+    fn intersect(
+        &self,
+        context: &Context,
+        scene: &AccelerationStructure,
+        ray: &Ray,
+    ) -> Option<(u32, Intersection)>;
 }
 
 pub trait RayGenerationShader<Context> {
@@ -22,5 +27,11 @@ pub trait RayGenerationShader<Context> {
 }
 
 pub trait ClosestHitShader<Context> {
-    fn hit(&self, ctx: &Context, intersection: &Intersection);
+    fn hit(
+        &self,
+        ctx: &Context,
+        scene: &AccelerationStructure,
+        intersection: &Intersection,
+        object_to_world: &Transform,
+    );
 }

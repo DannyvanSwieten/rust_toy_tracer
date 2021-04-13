@@ -1,7 +1,6 @@
 use super::bounding_box::*;
 use super::hittable::*;
-use super::intersection::*;
-use super::rand_float::rand_range;
+use super::rand::*;
 use super::ray::*;
 use super::scene::*;
 use super::types::Position;
@@ -9,29 +8,23 @@ use super::vec::*;
 use std::sync::Arc;
 
 trait Node {
-    fn hit_test(&self, ray: &Ray, t_min: f32, t_max: f32) -> Option<u32>;
+    fn hit_test(&self, ray: &Ray, t_min: f32, t_max: f32, result: Vec<u32>) -> Vec<u32>;
 }
 
 struct Branch {
-    left: Arc<dyn Node>,
-    right: Arc<dyn Node>,
+    left: Arc<dyn Node + Send + Sync>,
+    right: Arc<dyn Node + Send + Sync>,
     bounding_box: BoundingBox,
 }
 
 impl Node for Branch {
-    fn hit_test(&self, ray: &Ray, t_min: f32, t_max: f32) -> std::option::Option<u32> {
+    fn hit_test(&self, ray: &Ray, t_min: f32, t_max: f32, result: Vec<u32>) -> Vec<u32> {
         if !self.bounding_box.hit(ray, t_min, t_max) {
-            None
+            result
         } else {
-            if let Some(left_hit) = self.left.hit_test(ray, t_min, t_max) {
-                if let Some(right_hit) = self.right.hit_test(ray, t_min, t_max) {
-                    return Some(right_hit);
-                } else {
-                    return Some(left_hit);
-                }
-            } else {
-                return self.right.hit_test(ray, t_min, t_max);
-            }
+            let ids = self.left.hit_test(ray, t_min, t_max, result);
+            let r = self.right.hit_test(ray, t_min, t_max, ids);
+            r
         }
     }
 }
@@ -41,18 +34,28 @@ struct Leaf {
     bounding_box: BoundingBox,
 }
 
+impl Leaf {
+    fn new(instance: (u32, BoundingBox)) -> Arc<dyn Node + Send + Sync> {
+        Arc::new(Self {
+            id: instance.0,
+            bounding_box: instance.1,
+        })
+    }
+}
+
 impl Node for Leaf {
-    fn hit_test(&self, ray: &Ray, t_min: f32, t_max: f32) -> std::option::Option<u32> {
+    fn hit_test(&self, ray: &Ray, t_min: f32, t_max: f32, mut result: Vec<u32>) -> Vec<u32> {
         if self.bounding_box.hit(ray, t_min, t_max) {
-            Some(self.id)
+            result.push(self.id);
+            result
         } else {
-            None
+            result
         }
     }
 }
 
 impl Branch {
-    fn new(instances: &mut Vec<(u32, BoundingBox)>) -> Arc<dyn Node> {
+    fn new(instances: &mut Vec<(u32, BoundingBox)>) -> Arc<dyn Node + Send + Sync> {
         let mut bounding_box = BoundingBox::new(
             &Position::from_values(&[0., 0., 0.]),
             &Position::from_values(&[0., 0., 0.]),
@@ -60,6 +63,9 @@ impl Branch {
         for (_, bb) in instances.iter() {
             bounding_box = BoundingBox::surrounding_box(&bounding_box, &bb);
         }
+
+        let i = int_range(0, 3) as usize;
+        instances.sort_by(|(_, bb), (_, bb2)| bb.min()[i].partial_cmp(&bb2.max()[i]).unwrap());
 
         let mid = instances.len() / 2;
         let (left_instances, right_instances) = instances.split_at_mut(mid);
@@ -72,7 +78,7 @@ impl Branch {
         })
     }
 
-    fn from_slice(slice: &mut [(u32, BoundingBox)]) -> Arc<dyn Node> {
+    fn from_slice(slice: &mut [(u32, BoundingBox)]) -> Arc<dyn Node + Send + Sync> {
         let mut bounding_box = BoundingBox::new(
             &Position::from_values(&[0., 0., 0.]),
             &Position::from_values(&[0., 0., 0.]),
@@ -100,14 +106,14 @@ impl Branch {
     }
 }
 
-pub struct AccelerationStructV2 {
+pub struct AccelerationStructure {
     hittables: Vec<Arc<dyn Hittable + Send + Sync>>,
     instances: Vec<Instance>,
     bounding_box: BoundingBox,
-    root_node: Arc<dyn Node>,
+    root_node: Arc<dyn Node + Send + Sync>,
 }
 
-impl AccelerationStructV2 {
+impl AccelerationStructure {
     pub fn new(
         hittables: &Vec<Arc<dyn Hittable + Send + Sync>>,
         instances: &Vec<Instance>,
@@ -122,7 +128,8 @@ impl AccelerationStructV2 {
                 instance.instance_id,
                 geometry[instance.geometry_index as usize]
                     .bounding_box()
-                    .unwrap(), //.transformed(&instance.transform),
+                    .unwrap()
+                    .transformed(&instance.transform),
             ))
         }
 
@@ -138,7 +145,11 @@ impl AccelerationStructV2 {
             bounding_box = BoundingBox::surrounding_box(&bounding_box, &bb);
         }
 
-        let root_node = Branch::new(&mut id_and_bb);
+        let root_node = if id_and_bb.len() > 1 {
+            Branch::new(&mut id_and_bb)
+        } else {
+            Leaf::new(id_and_bb[0])
+        };
 
         Self {
             hittables: geometry,
@@ -148,177 +159,20 @@ impl AccelerationStructV2 {
         }
     }
 
-    pub fn intersect_instance(&self, ray: &Ray, t_min: f32, t_max: f32) -> Option<u32> {
-        self.root_node.hit_test(ray, t_min, t_max)
-    }
-}
-
-pub struct AccelerationStructure {
-    left: Arc<dyn Hittable + Send + Sync>,
-    right: Arc<dyn Hittable + Send + Sync>,
-    bounding_box: BoundingBox,
-}
-
-impl Hittable for AccelerationStructure {
-    fn intersect(&self, ray: &Ray, t_min: f32, t_max: f32) -> Option<Intersection> {
-        if !self.bounding_box.hit(ray, t_min, t_max) {
-            return None;
+    pub fn intersect_instance(&self, ray: &Ray, t_min: f32, t_max: f32) -> Vec<u32> {
+        let results = Vec::new();
+        if self.bounding_box.hit(ray, t_min, t_max) {
+            self.root_node.hit_test(ray, t_min, t_max, results)
         } else {
-            if let Some(left_hit) = self.left.intersect(ray, t_min, t_max) {
-                if let Some(right_hit) = self.right.intersect(ray, t_min, left_hit.t) {
-                    return Some(right_hit);
-                } else {
-                    return Some(left_hit);
-                }
-            } else {
-                return self.right.intersect(ray, t_min, t_max);
-            }
-        }
-    }
-    fn bounding_box(&self) -> Option<BoundingBox> {
-        Some(self.bounding_box)
-    }
-}
-
-impl AccelerationStructure {
-    pub fn from_hittables_and_instances(
-        hittables: &Vec<Arc<dyn Hittable + Send + Sync>>,
-        instances: &Vec<Instance>,
-    ) -> Self {
-        let clones = hittables.clone();
-        Self::from_hittables(clones)
-    }
-
-    pub fn new(scene: &Scene) -> Self {
-        // Clone the hittables
-        let hittables = scene.hittables().clone();
-        // Build acceleration structure
-        Self::from_hittables(hittables)
-    }
-
-    fn from_hittables(hittables: Vec<Arc<dyn Hittable + Send + Sync>>) -> Self {
-        // Find the midpoint.
-        let mid = hittables.len() / 2;
-        // Move to a mutable
-        let mut hittables = hittables;
-
-        // Sort them on random axis
-        let r = rand_range(0., 3.) as u32;
-
-        if r == 0 {
-            hittables.sort_by(|a, b| {
-                a.bounding_box()
-                    .unwrap()
-                    .min()
-                    .x()
-                    .partial_cmp(&b.bounding_box().unwrap().max().x())
-                    .unwrap()
-            });
-        } else if r == 1 {
-            hittables.sort_by(|a, b| {
-                a.bounding_box()
-                    .unwrap()
-                    .min()
-                    .y()
-                    .partial_cmp(&b.bounding_box().unwrap().max().y())
-                    .unwrap()
-            });
-        } else {
-            hittables.sort_by(|a, b| {
-                a.bounding_box()
-                    .unwrap()
-                    .min()
-                    .z()
-                    .partial_cmp(&b.bounding_box().unwrap().max().z())
-                    .unwrap()
-            });
-        }
-
-        // Split in the center
-        let (left, right) = hittables.split_at_mut(mid);
-
-        let left_node = Self::from_slice(left);
-        let right_node = Self::from_slice(right);
-
-        let a = left_node.bounding_box().unwrap();
-        let b = right_node.bounding_box().unwrap();
-        let c = BoundingBox::surrounding_box(&a, &b);
-
-        Self {
-            left: left_node,
-            right: right_node,
-            bounding_box: c,
+            results
         }
     }
 
-    fn from_slice(
-        hittables: &mut [Arc<dyn Hittable + Send + Sync>],
-    ) -> Arc<dyn Hittable + Send + Sync> {
-        let clones = hittables;
-        if clones.len() == 1 {
-            let a = clones[0].bounding_box();
-            return Arc::new(Self {
-                left: clones[0].clone(),
-                right: clones[0].clone(),
-                bounding_box: a.unwrap(),
-            });
-        } else if clones.len() == 2 {
-            let a = clones[0].bounding_box().unwrap();
-            let b = clones[1].bounding_box().unwrap();
-            let c = BoundingBox::surrounding_box(&a, &b);
-            return Arc::new(Self {
-                left: clones[0].clone(),
-                right: clones[1].clone(),
-                bounding_box: c,
-            });
-        } else {
-            // Sort them on random axis
-            let r = rand_range(0., 3.) as u32;
-
-            if r == 0 {
-                clones.sort_by(|a, b| {
-                    a.bounding_box()
-                        .unwrap()
-                        .min()
-                        .x()
-                        .partial_cmp(&b.bounding_box().unwrap().max().x())
-                        .unwrap()
-                });
-            } else if r == 1 {
-                clones.sort_by(|a, b| {
-                    a.bounding_box()
-                        .unwrap()
-                        .min()
-                        .y()
-                        .partial_cmp(&b.bounding_box().unwrap().max().y())
-                        .unwrap()
-                });
-            } else {
-                clones.sort_by(|a, b| {
-                    a.bounding_box()
-                        .unwrap()
-                        .min()
-                        .z()
-                        .partial_cmp(&b.bounding_box().unwrap().max().z())
-                        .unwrap()
-                });
-            }
-
-            let (left, right) = clones.split_at_mut(clones.len() / 2);
-            let left_node = Self::from_slice(left);
-            let right_node = Self::from_slice(right);
-
-            let a = left_node.bounding_box().unwrap();
-            let b = right_node.bounding_box().unwrap();
-            let c = BoundingBox::surrounding_box(&a, &b);
-
-            return Arc::new(Self {
-                left: left_node,
-                right: right_node,
-                bounding_box: c,
-            });
-        }
+    pub fn geometry(&self, index: usize) -> &Arc<dyn Hittable + Send + Sync> {
+        &self.hittables[index]
     }
 
-    pub fn intersec_bounding_box(&self, t_min: f32, t_max: f32) {}
+    pub fn instance(&self, id: usize) -> &Instance {
+        &self.instances[id]
+    }
 }
