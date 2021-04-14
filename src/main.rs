@@ -449,7 +449,7 @@ fn main() {
     // Purple
     ctx.material_ids.push(2);
 
-    for i in 2..20 {
+    for i in 2..50 {
         let x = rand::float_range(-10., 10.).floor();
         let y = rand::float_range(0., 10.).floor();
         let z = rand::float_range(1., 5.).floor();
