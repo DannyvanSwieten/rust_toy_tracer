@@ -12,8 +12,8 @@ trait Node {
 }
 
 struct Branch {
-    left: Arc<dyn Node + Send + Sync>,
-    right: Arc<dyn Node + Send + Sync>,
+    left: Box<dyn Node + Send + Sync>,
+    right: Box<dyn Node + Send + Sync>,
     bounding_box: BoundingBox,
 }
 
@@ -35,8 +35,8 @@ struct Leaf {
 }
 
 impl Leaf {
-    fn new(instance: (u32, BoundingBox)) -> Arc<dyn Node + Send + Sync> {
-        Arc::new(Self {
+    fn new(instance: (u32, BoundingBox)) -> Box<dyn Node + Send + Sync> {
+        Box::new(Self {
             id: instance.0,
             bounding_box: instance.1,
         })
@@ -55,7 +55,7 @@ impl Node for Leaf {
 }
 
 impl Branch {
-    fn new(instances: &mut Vec<(u32, BoundingBox)>) -> Arc<dyn Node + Send + Sync> {
+    fn new(instances: &mut Vec<(u32, BoundingBox)>) -> Box<dyn Node + Send + Sync> {
         let mut bounding_box = BoundingBox::new(
             &Position::from_values(&[0., 0., 0.]),
             &Position::from_values(&[0., 0., 0.]),
@@ -71,14 +71,14 @@ impl Branch {
         let (left_instances, right_instances) = instances.split_at_mut(mid);
         let left = Self::from_slice(left_instances);
         let right = Self::from_slice(right_instances);
-        Arc::new(Self {
+        Box::new(Self {
             left,
             right,
             bounding_box,
         })
     }
 
-    fn from_slice(slice: &mut [(u32, BoundingBox)]) -> Arc<dyn Node + Send + Sync> {
+    fn from_slice(slice: &mut [(u32, BoundingBox)]) -> Box<dyn Node + Send + Sync> {
         let mut bounding_box = BoundingBox::new(
             &Position::from_values(&[0., 0., 0.]),
             &Position::from_values(&[0., 0., 0.]),
@@ -88,7 +88,7 @@ impl Branch {
         }
 
         if slice.len() == 1 {
-            return Arc::new(Leaf {
+            return Box::new(Leaf {
                 id: slice[0].0,
                 bounding_box: slice[0].1,
             });
@@ -98,7 +98,7 @@ impl Branch {
         let (left_instances, right_instances) = slice.split_at_mut(mid);
         let left = Self::from_slice(left_instances);
         let right = Self::from_slice(right_instances);
-        Arc::new(Self {
+        Box::new(Self {
             left,
             right,
             bounding_box,
@@ -110,7 +110,7 @@ pub struct AccelerationStructure {
     hittables: Vec<Arc<dyn Hittable + Send + Sync>>,
     instances: Vec<Instance>,
     bounding_box: BoundingBox,
-    root_node: Arc<dyn Node + Send + Sync>,
+    root_node: Box<dyn Node + Send + Sync>,
 }
 
 impl AccelerationStructure {

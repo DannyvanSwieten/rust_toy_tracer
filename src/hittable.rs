@@ -122,19 +122,22 @@ impl Hittable for TriangleMesh {
     ) -> Option<Intersection> {
         for i in 0..self.indices.len() / 3 {
             let index = i * 3;
+            let i0 = self.indices[index] as usize;
+            let i1 = self.indices[index + 1] as usize;
+            let i2 = self.indices[index + 2] as usize;
 
-            let v0 = *object_to_world * &Vec4::from(self.positions[self.indices[index] as usize]);
+            let v0 = *object_to_world * &Vec4::from(self.positions[i0]);
             let v1 =
-                *object_to_world * &Vec4::from(self.positions[self.indices[index + 1] as usize]);
+                *object_to_world * &Vec4::from(self.positions[i1]);
             let v2 =
-                *object_to_world * &Vec4::from(self.positions[self.indices[index + 2] as usize]);
+                *object_to_world * &Vec4::from(self.positions[i2]);
 
             if let Some((t, u, v)) = self.ray_triangle_intersect(ray, t_min, t_max, &v0, &v1, &v2) {
                 return Some(Intersection::new(
                     &ray.at(t),
                     ray.direction(),
                     t,
-                    i as u32,
+                    index as u32,
                     &Barycentrics::from_values(&[u, v]),
                 ));
             }
@@ -142,29 +145,32 @@ impl Hittable for TriangleMesh {
 
         None
     }
-    fn normal(&self, _: &Transform, intersection: &Intersection) -> Normal {
+    fn normal(&self, object_to_world: &Transform, intersection: &Intersection) -> Normal {
         let i = intersection.primitive_id as usize;
         let i0 = self.indices[i] as usize;
         let i1 = self.indices[1 + i] as usize;
         let i2 = self.indices[2 + i] as usize;
         let n1 =
-            self.normals[i0] * (1. - intersection.barycentrics.x() - intersection.barycentrics.y());
-        let n2 = self.normals[i1] * intersection.barycentrics.x();
-        let n3 = self.normals[i2] * intersection.barycentrics.y();
+            *object_to_world * &Vec4::from(self.normals[i0]) * intersection.barycentrics.x();
+        let n2 = *object_to_world * &Vec4::from(self.normals[i1]) * intersection.barycentrics.y();
+        let n3 = *object_to_world * &Vec4::from(self.normals[i2]) *  (1. - intersection.barycentrics.x() - intersection.barycentrics.y());
         let n = n1 + n2 + n3;
-        normalize(&n1)
+        normalize(&n)
     }
 
     fn uv(&self, _: &Transform, intersection: &Intersection) -> TextureCoordinate {
-        let i0 = self.indices[intersection.primitive_id as usize] as usize;
-        let i1 = self.indices[1 + intersection.primitive_id as usize] as usize;
-        let i2 = self.indices[2 + intersection.primitive_id as usize] as usize;
+        // let i = intersection.primitive_id as usize;
+        // let i0 = self.indices[i] as usize;
+        // let i1 = self.indices[1 + i] as usize;
+        // let i2 = self.indices[2 + i] as usize;
 
-        let t1 = self.tex_coords[i0]
-            * (1. - intersection.barycentrics.x() - intersection.barycentrics.y());
-        let t2 = self.tex_coords[i1] * intersection.barycentrics.x();
-        let t3 = self.tex_coords[i2] * intersection.barycentrics.y();
-        t1 + t2 + t3
+        // let t1 = self.tex_coords[i0]
+        //     * (1. - intersection.barycentrics.x() - intersection.barycentrics.y());
+        // let t2 = self.tex_coords[i1] * intersection.barycentrics.x();
+        // let t3 = self.tex_coords[i2] * intersection.barycentrics.y();
+        // t1 + t2 + t3
+
+        TextureCoordinate::new()
     }
 }
 
@@ -180,16 +186,20 @@ impl TriangleMesh {
             for i in 0..indices.len() / 3 {
                 let index = i * 3;
 
-                let v0 = &positions[indices[index] as usize];
-                let v1 = &positions[indices[index + 1] as usize];
-                let v2 = &positions[indices[index + 2] as usize];
+                let i0 = indices[index] as usize;
+                let i1 = indices[index + 1] as usize;
+                let i2 = indices[index + 2] as usize;
+
+                let v0 = &positions[i0];
+                let v1 = &positions[i1];
+                let v2 = &positions[i2];
 
                 let v1v0 = *v1 - v0;
                 let v2v0 = *v2 - v0;
-                let n = normalize(&cross(&v2v0, &v1v0));
-                normals[indices[index] as usize] = n;
-                normals[indices[index + 1] as usize] = n;
-                normals[indices[index + 2] as usize] = n;
+                let n = normalize(&cross(&v1v0, &v2v0));
+                normals[i0] = normals[i0] + n;
+                normals[i1] = normals[i1] + n;
+                normals[i2] = normals[i2] + n;
             }
         }
 

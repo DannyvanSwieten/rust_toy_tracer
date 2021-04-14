@@ -22,7 +22,6 @@ use std::sync::mpsc;
 use std::sync::mpsc::{Receiver, Sender};
 use std::sync::Arc;
 
-use ::rand::*;
 use acceleration_structure::*;
 use crossbeam::thread;
 use hittable::*;
@@ -347,13 +346,13 @@ impl RayGenerationShader<MyContext> for RayGenerator {
 struct MyContext {
     spp: u32,
     max_depth: u32,
-    materials: Vec<Arc<dyn Material + Send + Sync>>,
+    materials: Vec<Box<dyn Material + Send + Sync>>,
     material_ids: Vec<u32>,
 }
 
 fn main() {
-    let width = 1920;
-    let height = 1080;
+    let width = 1920 / 2;
+    let height = 1080 / 2;
     let camera = CameraSettings::new(
         &Position::from_values(&[0., 2., 13.]),
         &Direction::from_values(&[0., 0., 0.]),
@@ -361,13 +360,13 @@ fn main() {
         65.,
     );
     let mut ctx = MyContext {
-        spp: 16,
-        max_depth: 8,
+        spp: 32,
+        max_depth: 16,
         materials: Vec::new(),
         material_ids: Vec::new(),
     };
 
-    ctx.materials.push(Arc::new(DiffuseMaterial::new(Arc::new(
+    ctx.materials.push(Box::new(DiffuseMaterial::new(Arc::new(
         CheckerTexture::new(
             Arc::new(SolidColorTexture::new(&Color::from_values(&[1., 1., 1.]))),
             Arc::new(SolidColorTexture::new(&Color::from_values(&[0., 0., 0.]))),
@@ -375,15 +374,15 @@ fn main() {
         ),
     ))));
 
-    ctx.materials.push(Arc::new(DiffuseMaterial::new(Arc::new(
+    ctx.materials.push(Box::new(DiffuseMaterial::new(Arc::new(
         SolidColorTexture::new(&Color::from_values(&[1., 0., 1.])),
     ))));
 
-    ctx.materials.push(Arc::new(DiffuseMaterial::new(Arc::new(
+    ctx.materials.push(Box::new(DiffuseMaterial::new(Arc::new(
         SolidColorTexture::new(&Color::from_values(&[1., 1., 1.])),
     ))));
 
-    ctx.materials.push(Arc::new(MirrorMaterial::new(Arc::new(
+    ctx.materials.push(Box::new(MirrorMaterial::new(Arc::new(
         SolidColorTexture::new(&Color::from_values(&[1., 1., 1.])),
     ))));
 
@@ -450,17 +449,17 @@ fn main() {
     // Purple
     ctx.material_ids.push(2);
 
-    for i in 2..100 {
+    for i in 2..20 {
         let x = rand::float_range(-10., 10.).floor();
         let y = rand::float_range(0., 10.).floor();
         let z = rand::float_range(1., 5.).floor();
         let s = rand::float_range(0.25, 1.25);
         instances.push(
-            Instance::new(0, i)
+            Instance::new(1, i)
                 .with_position(x, y, z)
                 .with_scale(s, s, s),
         );
-        ctx.material_ids.push(rand::int_range(0, 4));
+        ctx.material_ids.push(rand::int_range(0, 3));
     }
 
     let ac = AccelerationStructure::new(&geometry, &instances);
