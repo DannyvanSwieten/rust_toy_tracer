@@ -455,7 +455,7 @@ fn main() {
         let z = rand::float_range(1., 5.).floor();
         let s = rand::float_range(0.25, 1.25);
         instances.push(
-            Instance::new(1, i)
+            Instance::new(rand::int_range(0, 2), i)
                 .with_position(x, y, z)
                 .with_scale(s, s, s),
         );
