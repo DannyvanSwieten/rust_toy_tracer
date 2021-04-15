@@ -307,7 +307,7 @@ impl RayGenerationShader<MyContext> for RayGenerator {
             let u = (x as f32 + rand::float()) / (width - 1) as f32;
             let v = (y as f32 + rand::float()) / (height - 1) as f32;
             let mut ray = self.camera.ray(u, 1. - v);
-            for _ in 0..context.max_depth {
+            for d in 0..context.max_depth {
                 if let Some((instance_id, hit)) = ray_tracer.intersect(context, scene, &ray) {
                     let instance = scene.instance(instance_id as usize);
                     let geometry = scene.geometry(instance.geometry_index as usize);
@@ -333,6 +333,11 @@ impl RayGenerationShader<MyContext> for RayGenerator {
                     coefficient *= c;
                     break;
                 }
+
+                // Russtion roullette
+                if d > 3 && length(&coefficient) > rand::float() {
+                    break;
+                }
             }
 
             color = color + coefficient;
@@ -351,8 +356,8 @@ struct MyContext {
 }
 
 fn main() {
-    let width = 1920 / 2;
-    let height = 1080 / 2;
+    let width = 1920;
+    let height = 1080;
     let camera = CameraSettings::new(
         &Position::from_values(&[0., 2., 13.]),
         &Direction::from_values(&[0., 0., 0.]),
