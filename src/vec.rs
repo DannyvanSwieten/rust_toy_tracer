@@ -1,10 +1,27 @@
 use super::types::*;
-use super::vec_mul;
 
 #[derive(Copy, Clone)]
 #[repr(C)]
 pub struct Vector<const SIZE: usize> {
     pub data: [f32; SIZE],
+}
+
+impl<const SIZE: usize> Default for Vector<SIZE> {
+    fn default() -> Self {
+        Self { data: [0.0; SIZE] }
+    }
+}
+
+impl<const SIZE: usize> std::cmp::PartialEq for Vector<SIZE> {
+    fn eq(&self, other: &Self) -> bool {
+        for i in 0..SIZE {
+            if self.data[i] != other.data[i] {
+                return false;
+            }
+        }
+
+        true
+    }
 }
 
 impl<const SIZE: usize> std::ops::Index<usize> for Vector<SIZE> {
@@ -58,6 +75,15 @@ pub fn max<const SIZE: usize>(lhs: &Vector<SIZE>, rhs: &Vector<SIZE>) -> Vector<
 
 pub fn length<const SIZE: usize>(v: &Vector<SIZE>) -> f32 {
     dot(v, v).sqrt()
+}
+
+pub fn abs<const SIZE: usize>(v: &Vector<SIZE>) -> Vector<SIZE> {
+    let mut result = Vector::<SIZE>::new();
+    for i in 0..SIZE {
+        result[i] = v[i].abs()
+    }
+
+    result
 }
 
 pub fn normalize<const SIZE: usize>(v: &Vector<SIZE>) -> Vector<SIZE> {

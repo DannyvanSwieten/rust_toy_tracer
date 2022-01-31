@@ -1,8 +1,10 @@
+use super::acceleration_structure::BottomLevelAccelerationStructure;
 use super::bounding_box::*;
 use super::intersection::*;
 use super::ray::*;
 use super::types::*;
 use super::vec::*;
+use std::time::Instant;
 
 pub trait Hittable {
     fn intersect(
@@ -84,13 +86,13 @@ impl Hittable for Sphere {
         normalize(&n)
     }
 
-    fn uv(&self, _: &Transform, intersection: &Intersection) -> TextureCoordinate {
+    fn uv(&self, _: &Transform, _intersection: &Intersection) -> TextureCoordinate {
         TextureCoordinate::new()
     }
 
     fn bounding_box(&self) -> std::option::Option<BoundingBox> {
         let r = Position::from_values(&[self.radius, self.radius, self.radius]);
-        Some(BoundingBox::new(&(self.position - r), &(self.position + r)))
+        Some(BoundingBox::new(self.position - r, self.position + r))
     }
 }
 
@@ -99,20 +101,10 @@ pub struct TriangleMesh {
     normals: Vec<Normal>,
     tex_coords: Vec<TextureCoordinate>,
     indices: Vec<u32>,
+    acceleration_structure: BottomLevelAccelerationStructure,
 }
 
 impl Hittable for TriangleMesh {
-    fn bounding_box(&self) -> Option<BoundingBox> {
-        let mut min_p = Position::from_values(&[std::f32::MAX, std::f32::MAX, std::f32::MAX]);
-        let mut max_p = Position::from_values(&[std::f32::MIN, std::f32::MIN, std::f32::MIN]);
-        for p in self.positions.iter() {
-            min_p = min(&min_p, p);
-            max_p = max(&max_p, p);
-        }
-
-        Some(BoundingBox::new(&min_p, &max_p))
-    }
-
     fn intersect(
         &self,
         object_to_world: &Transform,
@@ -120,45 +112,90 @@ impl Hittable for TriangleMesh {
         t_min: f32,
         t_max: f32,
     ) -> Option<Intersection> {
-        for i in 0..self.indices.len() / 3 {
-            let index = i * 3;
-            let i0 = self.indices[index] as usize;
-            let i1 = self.indices[index + 1] as usize;
-            let i2 = self.indices[index + 2] as usize;
+        let mut intersection = None;
 
-            let v0 = *object_to_world * &Vec4::from(self.positions[i0]);
-            let v1 =
-                *object_to_world * &Vec4::from(self.positions[i1]);
-            let v2 =
-                *object_to_world * &Vec4::from(self.positions[i2]);
+        const USE_ACCELERATION_STRUCTURE: bool = false;
+        let start = Instant::now();
+        if !USE_ACCELERATION_STRUCTURE {
+            let mut closest = t_max;
+            for i in 0..self.indices.len() / 3 {
+                let index = i * 3;
+                let i0 = self.indices[index] as usize;
+                let i1 = self.indices[index + 1] as usize;
+                let i2 = self.indices[index + 2] as usize;
 
-            if let Some((t, u, v)) = self.ray_triangle_intersect(ray, t_min, t_max, &v0, &v1, &v2) {
-                return Some(Intersection::new(
-                    &ray.at(t),
-                    ray.direction(),
-                    t,
-                    index as u32,
-                    &Barycentrics::from_values(&[u, v]),
-                ));
+                let v0 = *object_to_world * &Vec4::from(self.positions[i0]);
+                let v1 = *object_to_world * &Vec4::from(self.positions[i1]);
+                let v2 = *object_to_world * &Vec4::from(self.positions[i2]);
+
+                if let Some((t, u, v)) =
+                    self.ray_triangle_intersect(ray, t_min, t_max, &v0, &v1, &v2)
+                {
+                    if t < closest {
+                        intersection = Some(Intersection::new(
+                            &ray.at(t),
+                            ray.direction(),
+                            t,
+                            index as u32,
+                            &Barycentrics::from_values(&[u, v]),
+                        ));
+
+                        closest = t;
+                    }
+                }
+            }
+        } else {
+            let result = self
+                .acceleration_structure
+                .hit_test(object_to_world, ray, t_min, t_max);
+
+            for index in result {
+                let i = index as usize;
+                let i0 = self.indices[i as usize] as usize;
+                let i1 = self.indices[i + 1] as usize;
+                let i2 = self.indices[i + 2] as usize;
+
+                let v0 = *object_to_world * &Vec4::from(self.positions[i0]);
+                let v1 = *object_to_world * &Vec4::from(self.positions[i1]);
+                let v2 = *object_to_world * &Vec4::from(self.positions[i2]);
+
+                let mut closest = t_max;
+                if let Some((t, u, v)) =
+                    self.ray_triangle_intersect(ray, t_min, t_max, &v0, &v1, &v2)
+                {
+                    if t < closest {
+                        intersection = Some(Intersection::new(
+                            &ray.at(t),
+                            ray.direction(),
+                            t,
+                            index as u32,
+                            &Barycentrics::from_values(&[u, v]),
+                        ));
+
+                        closest = t;
+                    }
+                }
             }
         }
-
-        None
+        let duration = start.elapsed();
+        //println!("Time elapsed in object trace is: {:?}", duration);
+        intersection
     }
+
     fn normal(&self, object_to_world: &Transform, intersection: &Intersection) -> Normal {
         let i = intersection.primitive_id as usize;
         let i0 = self.indices[i] as usize;
         let i1 = self.indices[1 + i] as usize;
         let i2 = self.indices[2 + i] as usize;
-        let n1 =
-            *object_to_world * &Vec4::from(self.normals[i0]) * intersection.barycentrics.x();
+        let n1 = *object_to_world * &Vec4::from(self.normals[i0]) * intersection.barycentrics.x();
         let n2 = *object_to_world * &Vec4::from(self.normals[i1]) * intersection.barycentrics.y();
-        let n3 = *object_to_world * &Vec4::from(self.normals[i2]) *  (1. - intersection.barycentrics.x() - intersection.barycentrics.y());
+        let n3 = *object_to_world
+            * &Vec4::from(self.normals[i2])
+            * (1. - intersection.barycentrics.x() - intersection.barycentrics.y());
         let n = n1 + n2 + n3;
         normalize(&n)
     }
-
-    fn uv(&self, _: &Transform, intersection: &Intersection) -> TextureCoordinate {
+    fn uv(&self, _: &Transform, _intersection: &Intersection) -> TextureCoordinate {
         // let i = intersection.primitive_id as usize;
         // let i0 = self.indices[i] as usize;
         // let i1 = self.indices[1 + i] as usize;
@@ -171,6 +208,10 @@ impl Hittable for TriangleMesh {
         // t1 + t2 + t3
 
         TextureCoordinate::new()
+    }
+
+    fn bounding_box(&self) -> Option<BoundingBox> {
+        Some(self.acceleration_structure.bounding_box())
     }
 }
 
@@ -207,19 +248,23 @@ impl TriangleMesh {
             tex_coords.resize(positions.len(), TextureCoordinate::new())
         }
 
+        let acceleration_structure =
+            BottomLevelAccelerationStructure::new(&positions, Some(&indices));
+
         Self {
             positions,
             normals,
             tex_coords,
             indices,
+            acceleration_structure,
         }
     }
 
     fn ray_triangle_intersect(
         &self,
         ray: &Ray,
-        t_min: f32,
-        t_max: f32,
+        _t_min: f32,
+        _t_max: f32,
         v0: &Position,
         v1: &Position,
         v2: &Position,

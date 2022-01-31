@@ -1,10 +1,4 @@
-use super::bounding_box::*;
-use super::hittable::*;
-use super::intersection::*;
-use super::ray::*;
 use super::types::*;
-use super::vec::*;
-use std::sync::Arc;
 
 #[derive(Copy, Clone)]
 pub struct Instance {
