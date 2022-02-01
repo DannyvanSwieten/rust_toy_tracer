@@ -104,6 +104,16 @@ pub fn reflect(i: &Vec3, n: &Vec3) -> Vec3 {
     (*i) - (*n) * d
 }
 
+pub fn refract(i: &Vec3, n: &Vec3, eta: f32) -> Vec3 {
+    let n_dot_i = dot(&n, &i);
+    let k = 1.0 - eta * eta * (1.0 - n_dot_i * n_dot_i);
+    if k < 0.0 {
+        Vec3::new()
+    } else {
+        eta * i - (eta * n_dot_i + k.sqrt()) * n
+    }
+}
+
 pub trait XAccessor {
     fn x(&self) -> f32;
 }

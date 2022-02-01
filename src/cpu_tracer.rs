@@ -62,7 +62,7 @@ impl<Context: Send + Sync> RayTracer<Context> for CPUTracer<Context> {
 
                         thread_tx.send(row_vector).unwrap();
                         let progress = (row + t) as f32 / height as f32;
-                        //println!("Progress: {} Row: {}", progress * 100., row + t);
+                        println!("Progress: {} Row: {}", progress * 100., row + t);
                     });
                 }
             })
@@ -70,9 +70,10 @@ impl<Context: Send + Sync> RayTracer<Context> for CPUTracer<Context> {
 
             for row in rx.try_iter() {
                 for (x, y, color) in row {
-                    let r = (color.x().sqrt() * 255.) as u8;
-                    let g = (color.y().sqrt() * 255.) as u8;
-                    let b = (color.z().sqrt() * 255.) as u8;
+                    let c = color / (Color::from_values(&[1.0, 1.0, 1.0]) + color);
+                    let r = (c.x().sqrt() * 255.) as u8;
+                    let g = (c.y().sqrt() * 255.) as u8;
+                    let b = (c.z().sqrt() * 255.) as u8;
                     image.put_pixel(x, y, Rgb([r, g, b]))
                 }
             }

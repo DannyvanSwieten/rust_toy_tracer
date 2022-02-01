@@ -114,7 +114,7 @@ impl Hittable for TriangleMesh {
     ) -> Option<Intersection> {
         let mut intersection = None;
 
-        const USE_ACCELERATION_STRUCTURE: bool = false;
+        const USE_ACCELERATION_STRUCTURE: bool = true;
         let start = Instant::now();
         if !USE_ACCELERATION_STRUCTURE {
             let mut closest = t_max;
@@ -150,7 +150,7 @@ impl Hittable for TriangleMesh {
                 .hit_test(object_to_world, ray, t_min, t_max);
 
             for index in result {
-                let i = index as usize;
+                let i = index as usize * 3;
                 let i0 = self.indices[i as usize] as usize;
                 let i1 = self.indices[i + 1] as usize;
                 let i2 = self.indices[i + 2] as usize;
@@ -187,27 +187,25 @@ impl Hittable for TriangleMesh {
         let i0 = self.indices[i] as usize;
         let i1 = self.indices[1 + i] as usize;
         let i2 = self.indices[2 + i] as usize;
-        let n1 = *object_to_world * &Vec4::from(self.normals[i0]) * intersection.barycentrics.x();
-        let n2 = *object_to_world * &Vec4::from(self.normals[i1]) * intersection.barycentrics.y();
-        let n3 = *object_to_world
-            * &Vec4::from(self.normals[i2])
+        let n1 = *object_to_world
+            * &Vec4::from(self.normals[i0])
             * (1. - intersection.barycentrics.x() - intersection.barycentrics.y());
+        let n2 = *object_to_world * &Vec4::from(self.normals[i1]) * intersection.barycentrics.x();
+        let n3 = *object_to_world * &Vec4::from(self.normals[i2]) * intersection.barycentrics.y();
         let n = n1 + n2 + n3;
         normalize(&n)
     }
-    fn uv(&self, _: &Transform, _intersection: &Intersection) -> TextureCoordinate {
-        // let i = intersection.primitive_id as usize;
-        // let i0 = self.indices[i] as usize;
-        // let i1 = self.indices[1 + i] as usize;
-        // let i2 = self.indices[2 + i] as usize;
+    fn uv(&self, _: &Transform, intersection: &Intersection) -> TextureCoordinate {
+        let i = intersection.primitive_id as usize;
+        let i0 = self.indices[i] as usize;
+        let i1 = self.indices[1 + i] as usize;
+        let i2 = self.indices[2 + i] as usize;
 
-        // let t1 = self.tex_coords[i0]
-        //     * (1. - intersection.barycentrics.x() - intersection.barycentrics.y());
-        // let t2 = self.tex_coords[i1] * intersection.barycentrics.x();
-        // let t3 = self.tex_coords[i2] * intersection.barycentrics.y();
-        // t1 + t2 + t3
-
-        TextureCoordinate::new()
+        let t1 = self.tex_coords[i0]
+            * (1. - intersection.barycentrics.x() - intersection.barycentrics.y());
+        let t2 = self.tex_coords[i1] * intersection.barycentrics.x();
+        let t3 = self.tex_coords[i2] * intersection.barycentrics.y();
+        t1 + t2 + t3
     }
 
     fn bounding_box(&self) -> Option<BoundingBox> {

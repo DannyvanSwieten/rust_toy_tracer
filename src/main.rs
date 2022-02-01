@@ -194,16 +194,16 @@ struct MyContext {
 }
 
 fn main() {
-    let width = 720;
-    let height = 480;
+    let width = 1280;
+    let height = 720;
     let camera = CameraSettings::new(
-        &Position::from_values(&[2., 2., 13.]),
+        &Position::from_values(&[2., 2., 25.]),
         &Direction::from_values(&[0., 0., 0.]),
         width as f32 / height as f32,
         45.,
     );
     let mut ctx = MyContext {
-        spp: 16,
+        spp: 4,
         max_depth: 8,
         materials: Vec::new(),
         material_ids: Vec::new(),
@@ -231,7 +231,7 @@ fn main() {
 
     let mut geometry: Vec<Arc<dyn Hittable + Send + Sync>> = Vec::new();
 
-    let obj_file = "./assets/cube_rounded.obj";
+    let obj_file = "./assets/teapot.obj";
     let (models, _) = tobj::load_obj(&obj_file, false).expect("Failed to load file");
 
     let mut positions = Vec::new();
@@ -255,7 +255,7 @@ fn main() {
     // positions.push(Position::from_values(&[0.5 - 2.5, -0.5, 0.0]));
     // positions.push(Position::from_values(&[0.0 - 2.5, 0.5, 0.0]));
 
-    // indices.extend(&[0, 1, 2, 3, 4, 5, 6, 7, 8, 9, 11, 11]);
+    // indices.extend(&[0, 1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11]);
 
     for (_, m) in models.iter().enumerate() {
         let mesh = &m.mesh;
@@ -286,6 +286,8 @@ fn main() {
         }
     }
 
+    geometry.push(Arc::new(Sphere::new(1.0, &Position::default(), 0)));
+
     geometry.push(Arc::new(TriangleMesh::new(
         positions, normals, tex_coords, indices,
     )));
@@ -294,8 +296,8 @@ fn main() {
     // Floor
     instances.push(
         Instance::new(0, 0)
-            .with_position(0., 0., 0.)
-            .with_scale(1., 1., 1.),
+            .with_position(0., -100., 0.)
+            .with_scale(100., 100., 100.),
     );
     // Checker
     ctx.material_ids.push(0);
@@ -305,12 +307,12 @@ fn main() {
     ctx.material_ids.push(2);
 
     for i in 2..50 {
-        let x = rand::float_range(-5., 5.).floor();
-        let y = rand::float_range(-5., 5.).floor();
-        let z = rand::float_range(1., 5.).floor();
+        let x = rand::float_range(-10., 10.).floor();
+        let y = rand::float_range(-10., 10.).floor();
+        let z = rand::float_range(1., 10.).floor();
         let s = rand::float_range(0.25, 1.25);
         instances.push(
-            Instance::new(0, i)
+            Instance::new(1, i)
                 .with_position(x, y, z)
                 .with_scale(s, s, s),
         );

@@ -408,21 +408,30 @@ impl BottomLevelAccelerationStructure {
             .enumerate()
             .map(|(index, bb)| {
                 let normalized_mid_point = total_bb.relative_position(&bb.center());
-                MortonCode::new(&normalized_mid_point, index as u32 * 3)
+                MortonCode::new(&normalized_mid_point, index as u32)
             })
             .collect();
 
-        let mut nodes = vec![BVHFlatNode::default(); total_node_count];
-        for i in branch_count..total_node_count {
-            nodes[i].primitive_idx = morton_codes[i - branch_count].primitive_id;
+        morton_codes.sort_by_key(|code| code.code);
+        let mut b: Vec<BoundingBox> = morton_codes
+            .iter()
+            .map(|code| primitive_bbs[code.primitive_id as usize + branch_count])
+            .collect();
+
+        for i in 0..branch_count {
+            b.insert(0, BoundingBox::default())
         }
 
+        primitive_bbs = b;
+        let mut nodes = vec![BVHFlatNode::default(); total_node_count];
         nodes[0].parent_idx = 0xFFFFFFFF;
         for i in 0..branch_count {
             nodes[i].primitive_idx = 0xFFFFFFFF;
         }
 
-        morton_codes.sort_by(|a, b| a.code.cmp(&b.code));
+        for i in branch_count..total_node_count {
+            nodes[i].primitive_idx = morton_codes[i - branch_count].primitive_id;
+        }
 
         for i in 0..branch_count {
             let (first, last) = Self::find_range(&morton_codes, i);

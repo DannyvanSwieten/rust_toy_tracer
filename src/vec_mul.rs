@@ -33,12 +33,34 @@ impl<const SIZE: usize> std::ops::Mul<f32> for Vector<SIZE> {
     }
 }
 
+impl<const SIZE: usize> std::ops::Mul<Vector<SIZE>> for f32 {
+    type Output = Vector<SIZE>;
+    fn mul(self, b: Vector<SIZE>) -> Self::Output {
+        let mut result = Vector::<SIZE>::new();
+        for i in 0..SIZE {
+            result.data[i] = self * b.data[i]
+        }
+        result
+    }
+}
+
 impl<const SIZE: usize> std::ops::Mul<f32> for &Vector<SIZE> {
     type Output = Vector<SIZE>;
     fn mul(self, b: f32) -> Vector<SIZE> {
         let mut result = Vector::<SIZE>::new();
         for i in 0..SIZE {
             result.data[i] = self.data[i] * b
+        }
+        result
+    }
+}
+
+impl<const SIZE: usize> std::ops::Mul<&Vector<SIZE>> for f32 {
+    type Output = Vector<SIZE>;
+    fn mul(self, b: &Vector<SIZE>) -> Self::Output {
+        let mut result = Vector::<SIZE>::new();
+        for i in 0..SIZE {
+            result.data[i] = self * b.data[i]
         }
         result
     }
