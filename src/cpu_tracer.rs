@@ -1,28 +1,42 @@
 use super::acceleration_structure::*;
+use super::hittable::Hittable;
 use super::intersection::*;
 use super::ray::*;
 use super::raytracer::*;
+use super::resources::Resources;
 use super::types::Color;
 use super::vec::{XAccessor, YAccessor, ZAccessor};
 use crossbeam::thread;
 use image::*;
 use std::sync::mpsc::{channel, Receiver, Sender};
-use std::sync::Arc;
-
-pub struct CPUTracer<Context> {
-    ray_generation_shader: Arc<dyn RayGenerationShader<Context> + Send + Sync>,
+pub struct CPUTracer {
+    ray_generation_shader: Box<dyn RayGenerationShader>,
 }
 
-impl<Context> CPUTracer<Context> {
-    pub fn new(ray_generation_shader: Arc<dyn RayGenerationShader<Context> + Send + Sync>) -> Self {
+impl CPUTracer {
+    pub fn new<T>(ray_generation_shader: T) -> Self
+    where
+        T: RayGenerationShader + 'static,
+    {
         Self {
-            ray_generation_shader,
+            ray_generation_shader: Box::new(ray_generation_shader),
         }
     }
 }
 
-impl<Context: Send + Sync> RayTracer<Context> for CPUTracer<Context> {
-    fn trace(&self, context: &Context, width: u32, height: u32, scene: &AccelerationStructure) {
+unsafe impl Send for CPUTracer {}
+unsafe impl Sync for CPUTracer {}
+
+impl RayTracer for CPUTracer {
+    fn trace(
+        &self,
+        spp: u32,
+        max_depth: u32,
+        width: u32,
+        height: u32,
+        scene: &TopLevelAccelerationStructure,
+        resources: &Resources,
+    ) {
         let thread_count = num_cpus::get() as u32;
         let mut image = RgbImage::new(width, height);
         let (tx, rx): (
@@ -37,7 +51,7 @@ impl<Context: Send + Sync> RayTracer<Context> for CPUTracer<Context> {
 
             let thread_tx = tx.clone();
 
-            thread::scope(move |s| {
+            thread::scope(|s| {
                 for t in 0..thread_count {
                     if row + t >= height {
                         break;
@@ -49,8 +63,10 @@ impl<Context: Send + Sync> RayTracer<Context> for CPUTracer<Context> {
                         for x in 0..width {
                             let color = self.ray_generation_shader.generate(
                                 self,
-                                context,
                                 scene,
+                                resources,
+                                spp,
+                                max_depth,
                                 width,
                                 height,
                                 x,
@@ -84,9 +100,9 @@ impl<Context: Send + Sync> RayTracer<Context> for CPUTracer<Context> {
 
     fn intersect(
         &self,
-        _: &Context,
-        scene: &AccelerationStructure,
         ray: &Ray,
+        scene: &TopLevelAccelerationStructure,
+        resources: &Resources,
     ) -> Option<(u32, Intersection)> {
         let results = scene.intersect_instance(ray, 0.01, 1000.);
         if results.len() > 0 {
@@ -94,8 +110,8 @@ impl<Context: Send + Sync> RayTracer<Context> for CPUTracer<Context> {
             let mut t: f32 = 1001.;
             for id in results.iter() {
                 let instance = scene.instance(*id as usize);
-                if let Some(intersection) = scene
-                    .geometry(instance.geometry_index as usize)
+                if let Some(intersection) = resources
+                    .hittable(instance.geometry_index as usize)
                     .intersect(&instance.transform, ray, 0.01, 1000.)
                 {
                     if intersection.t < t {

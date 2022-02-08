@@ -1,24 +1,17 @@
+use super::ray::*;
 use super::types::*;
-
+#[derive(Default)]
 pub struct Intersection {
-    pub position: Position,
-    pub in_direction: Direction,
+    pub ray: Ray,
     pub t: f32,
     pub primitive_id: u32,
     pub barycentrics: Barycentrics,
 }
 
 impl Intersection {
-    pub fn new(
-        position: &Position,
-        in_direction: &Direction,
-        t: f32,
-        primitive_id: u32,
-        barycentrics: &Barycentrics,
-    ) -> Self {
+    pub fn new(ray: &Ray, t: f32, primitive_id: u32, barycentrics: &Barycentrics) -> Self {
         Self {
-            position: *position,
-            in_direction: *in_direction,
+            ray: *ray,
             t,
             primitive_id,
             barycentrics: *barycentrics,

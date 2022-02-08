@@ -23,15 +23,13 @@ pub trait Hittable {
 pub struct Sphere {
     radius: f32,
     position: Position,
-    material_id: u32,
 }
 
 impl Sphere {
-    pub fn new(radius: f32, position: &Position, material_id: u32) -> Self {
+    pub fn new(radius: f32, position: &Position) -> Self {
         Self {
             radius,
             position: *position,
-            material_id,
         }
     }
 }
@@ -67,8 +65,7 @@ impl Hittable for Sphere {
         }
 
         return Some(Intersection::new(
-            &ray.at(root),
-            &ray.dir,
+            ray,
             root,
             0,
             &Barycentrics::from_values(&[0., 0.]),
@@ -77,8 +74,10 @@ impl Hittable for Sphere {
 
     fn normal(&self, object_to_world: &Transform, intersection: &Intersection) -> Normal {
         let r = object_to_world.colums[0][0] * self.radius;
-        let n = (intersection.position - (*object_to_world * Vec4::from(self.position))) / r;
-        let n = if dot(&n, &intersection.in_direction) < 0. {
+        let n = (intersection.ray.at(intersection.t)
+            - (*object_to_world * Vec4::from(self.position)))
+            / r;
+        let n = if dot(&n, &intersection.ray.direction()) < 0. {
             n
         } else {
             -n
@@ -133,8 +132,7 @@ impl Hittable for TriangleMesh {
                 {
                     if t < closest {
                         intersection = Some(Intersection::new(
-                            &ray.at(t),
-                            ray.direction(),
+                            ray,
                             t,
                             index as u32,
                             &Barycentrics::from_values(&[u, v]),
@@ -165,10 +163,9 @@ impl Hittable for TriangleMesh {
                 {
                     if t < closest {
                         intersection = Some(Intersection::new(
-                            &ray.at(t),
-                            ray.direction(),
+                            ray,
                             t,
-                            index as u32,
+                            i as u32,
                             &Barycentrics::from_values(&[u, v]),
                         ));
 
@@ -187,13 +184,16 @@ impl Hittable for TriangleMesh {
         let i0 = self.indices[i] as usize;
         let i1 = self.indices[1 + i] as usize;
         let i2 = self.indices[2 + i] as usize;
-        let n1 = *object_to_world
-            * &Vec4::from(self.normals[i0])
+
+        let tr = object_to_world.transposed();
+
+        let n1 = tr
+            * self.normals[i0]
             * (1. - intersection.barycentrics.x() - intersection.barycentrics.y());
-        let n2 = *object_to_world * &Vec4::from(self.normals[i1]) * intersection.barycentrics.x();
-        let n3 = *object_to_world * &Vec4::from(self.normals[i2]) * intersection.barycentrics.y();
+        let n2 = tr * self.normals[i1] * intersection.barycentrics.x();
+        let n3 = tr * self.normals[i2] * intersection.barycentrics.y();
         let n = n1 + n2 + n3;
-        normalize(&n)
+        normalize(&Vec3::from(n))
     }
     fn uv(&self, _: &Transform, intersection: &Intersection) -> TextureCoordinate {
         let i = intersection.primitive_id as usize;
@@ -222,9 +222,7 @@ impl TriangleMesh {
     ) -> Self {
         if normals.len() == 0 {
             normals.resize(positions.len(), Normal::new());
-            for i in 0..indices.len() / 3 {
-                let index = i * 3;
-
+            for index in (0..indices.len()).step_by(3) {
                 let i0 = indices[index] as usize;
                 let i1 = indices[index + 1] as usize;
                 let i2 = indices[index + 2] as usize;
@@ -240,6 +238,13 @@ impl TriangleMesh {
                 normals[i1] = normals[i1] + n;
                 normals[i2] = normals[i2] + n;
             }
+        }
+
+        for n in normals.iter_mut() {
+            let new_n = normalize(n);
+            n[0] = new_n[0];
+            n[1] = new_n[1];
+            n[2] = new_n[2];
         }
 
         if tex_coords.len() == 0 {
@@ -272,7 +277,7 @@ impl TriangleMesh {
         let pvec = cross(ray.direction(), &v0v2);
         let det = dot(&v0v1, &pvec);
 
-        if det < 0.00001 {
+        if det < 0.0000001 {
             return None;
         }
 
@@ -292,4 +297,53 @@ impl TriangleMesh {
         let t = dot(&v0v2, &qvec) * inv_det;
         Some((t, u, v))
     }
+}
+
+pub struct XYRect {
+    x0: f32,
+    x1: f32,
+    y0: f32,
+    y1: f32,
+    k: f32,
+}
+
+impl Hittable for XYRect {
+    fn intersect(
+        &self,
+        object_to_world: &Transform,
+        ray: &Ray,
+        t_min: f32,
+        t_max: f32,
+    ) -> Option<Intersection> {
+        todo!()
+    }
+
+    fn normal(&self, object_to_world: &Transform, intersection: &Intersection) -> Normal {
+        *object_to_world * &Vec4::from(Normal::from_values(&[0.0, 0.0, -1.0]))
+    }
+
+    fn uv(&self, object_to_world: &Transform, intersection: &Intersection) -> TextureCoordinate {
+        Vec2::from_values(&[0.0, 0.0])
+    }
+
+    fn bounding_box(&self) -> Option<BoundingBox> {
+        Some(BoundingBox::new(
+            Vec3::from_values(&[self.x0, self.y0, -0.0001]),
+            Vec3::from_values(&[self.x1, self.y1, 0.0001]),
+        ))
+    }
+}
+pub struct XZRect {
+    x0: f32,
+    x1: f32,
+    z0: f32,
+    z1: f32,
+    k: f32,
+}
+pub struct YZRect {
+    y0: f32,
+    y1: f32,
+    z0: f32,
+    z1: f32,
+    k: f32,
 }

@@ -5,15 +5,14 @@ use super::ray::*;
 use super::scene::*;
 use super::types::{Position, Transform};
 use super::vec::*;
-use std::sync::Arc;
 
 trait Node {
     fn hit_test(&self, ray: &Ray, t_min: f32, t_max: f32, result: Vec<u32>) -> Vec<u32>;
 }
 
 struct Branch {
-    left: Box<dyn Node + Send + Sync>,
-    right: Box<dyn Node + Send + Sync>,
+    left: Box<dyn Node>,
+    right: Box<dyn Node>,
     bounding_box: BoundingBox,
 }
 
@@ -35,7 +34,7 @@ struct Leaf {
 }
 
 impl Leaf {
-    fn new(instance: (u32, BoundingBox)) -> Box<dyn Node + Send + Sync> {
+    fn new(instance: (u32, BoundingBox)) -> Box<dyn Node> {
         Box::new(Self {
             id: instance.0,
             bounding_box: instance.1,
@@ -55,7 +54,7 @@ impl Node for Leaf {
 }
 
 impl Branch {
-    fn new(instances: &mut Vec<(u32, BoundingBox)>) -> Box<dyn Node + Send + Sync> {
+    fn new(instances: &mut Vec<(u32, BoundingBox)>) -> Box<dyn Node> {
         let mut bounding_box = BoundingBox::new(
             Position::from_values(&[0., 0., 0.]),
             Position::from_values(&[0., 0., 0.]),
@@ -78,7 +77,7 @@ impl Branch {
         })
     }
 
-    fn from_slice(slice: &mut [(u32, BoundingBox)]) -> Box<dyn Node + Send + Sync> {
+    fn from_slice(slice: &mut [(u32, BoundingBox)]) -> Box<dyn Node> {
         let mut bounding_box = BoundingBox::new(
             Position::from_values(&[0., 0., 0.]),
             Position::from_values(&[0., 0., 0.]),
@@ -105,19 +104,17 @@ impl Branch {
         })
     }
 }
-
-pub struct AccelerationStructure {
-    hittables: Vec<Arc<dyn Hittable + Send + Sync>>,
+pub struct TopLevelAccelerationStructure {
     instances: Vec<Instance>,
     bounding_box: BoundingBox,
-    root_node: Box<dyn Node + Send + Sync>,
+    root_node: Box<dyn Node>,
 }
 
-impl AccelerationStructure {
-    pub fn new(
-        hittables: &Vec<Arc<dyn Hittable + Send + Sync>>,
-        instances: &Vec<Instance>,
-    ) -> Self {
+unsafe impl Send for TopLevelAccelerationStructure {}
+unsafe impl Sync for TopLevelAccelerationStructure {}
+
+impl TopLevelAccelerationStructure {
+    pub fn new(hittables: &Vec<Box<dyn Hittable>>, instances: &Vec<Instance>) -> Self {
         let geometry = hittables.clone();
         let geometry_instances = instances.clone();
         let mut id_and_bb = Vec::new();
@@ -152,7 +149,7 @@ impl AccelerationStructure {
         };
 
         Self {
-            hittables: geometry,
+            //hittables: geometry,
             instances: geometry_instances,
             bounding_box,
             root_node,
@@ -168,8 +165,8 @@ impl AccelerationStructure {
         }
     }
 
-    pub fn geometry(&self, index: usize) -> &Arc<dyn Hittable + Send + Sync> {
-        &self.hittables[index]
+    pub fn geometry(&self, index: usize) {
+        //&self.hittables[index]
     }
 
     pub fn instance(&self, id: usize) -> &Instance {

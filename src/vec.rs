@@ -42,6 +42,10 @@ impl<const SIZE: usize> Vector<SIZE> {
         Self { data: [0.; SIZE] }
     }
 
+    pub fn splat(v: f32) -> Self {
+        Self { data: [v; SIZE] }
+    }
+
     pub fn from_values(data: &[f32; SIZE]) -> Self {
         Self { data: *data }
     }
@@ -77,6 +81,11 @@ pub fn length<const SIZE: usize>(v: &Vector<SIZE>) -> f32 {
     dot(v, v).sqrt()
 }
 
+pub fn distance<const SIZE: usize>(a: &Vector<SIZE>, b: &Vector<SIZE>) -> f32 {
+    let d = *a - b;
+    length(&d)
+}
+
 pub fn abs<const SIZE: usize>(v: &Vector<SIZE>) -> Vector<SIZE> {
     let mut result = Vector::<SIZE>::new();
     for i in 0..SIZE {
@@ -105,13 +114,11 @@ pub fn reflect(i: &Vec3, n: &Vec3) -> Vec3 {
 }
 
 pub fn refract(i: &Vec3, n: &Vec3, eta: f32) -> Vec3 {
-    let n_dot_i = dot(&n, &i);
-    let k = 1.0 - eta * eta * (1.0 - n_dot_i * n_dot_i);
-    if k < 0.0 {
-        Vec3::new()
-    } else {
-        eta * i - (eta * n_dot_i + k.sqrt()) * n
-    }
+    let cos_theta = dot(&n, &-i).min(1.0);
+    let perpendicular = eta * (*i + cos_theta * n);
+    let l = (1.0 - length(&perpendicular)).abs().sqrt();
+    let parallel = -l * n;
+    perpendicular + parallel
 }
 
 pub trait XAccessor {
@@ -157,5 +164,11 @@ impl<const SIZE: usize> WAccessor for Vector<SIZE> {
 impl From<Vec3> for Vec4 {
     fn from(v: Vec3) -> Self {
         Vec4::from_values(&[v.x(), v.y(), v.z(), 1.])
+    }
+}
+
+impl From<Vec4> for Vec3 {
+    fn from(v: Vec4) -> Self {
+        Vec3::from_values(&[v.x(), v.y(), v.z()])
     }
 }

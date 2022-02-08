@@ -49,12 +49,22 @@ impl<const SIZE: usize> std::ops::SubAssign<f32> for Vector<SIZE> {
 }
 
 impl<const SIZE: usize> std::ops::Neg for Vector<SIZE> {
-    type Output = Self;
-    fn neg(mut self) -> Self {
+    type Output = Vector<SIZE>;
+    fn neg(mut self) -> Self::Output {
         for i in 0..SIZE {
-            self.data[i] = -self.data[i]
+            self[i] = -self.data[i]
         }
-
         self
+    }
+}
+
+impl<const SIZE: usize> std::ops::Neg for &Vector<SIZE> {
+    type Output = Vector<SIZE>;
+    fn neg(self) -> Self::Output {
+        let mut result = Vector::<SIZE>::new();
+        for i in 0..SIZE {
+            result[i] = -self.data[i]
+        }
+        result
     }
 }

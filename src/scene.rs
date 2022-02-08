@@ -5,15 +5,17 @@ pub struct Instance {
     pub geometry_index: u32,
     pub instance_id: u32,
     pub hit_shader_id: u32,
+    pub material_id: u32,
     pub transform: Transform,
 }
 
 impl Instance {
-    pub fn new(geometry_index: u32, instance_id: u32) -> Self {
+    pub fn new(geometry_index: u32, instance_id: u32, material_id: u32) -> Self {
         Self {
             geometry_index,
             instance_id,
             hit_shader_id: 0,
+            material_id,
             transform: Transform::new(),
         }
     }

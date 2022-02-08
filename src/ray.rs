@@ -1,6 +1,6 @@
 use super::types::*;
 
-#[derive(Clone, Copy)]
+#[derive(Clone, Copy, Default)]
 pub struct Ray {
     pub origin: Position,
     pub dir: Direction,

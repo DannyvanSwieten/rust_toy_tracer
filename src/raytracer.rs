@@ -1,24 +1,35 @@
 use super::acceleration_structure::*;
 use super::intersection::*;
 use super::ray::*;
+use super::resources::Resources;
 use super::types::*;
 
-pub trait RayTracer<Context> {
-    fn trace(&self, context: &Context, width: u32, height: u32, scene: &AccelerationStructure);
+pub trait RayTracer {
+    fn trace(
+        &self,
+        spp: u32,
+        max_depth: u32,
+        width: u32,
+        height: u32,
+        scene: &TopLevelAccelerationStructure,
+        resources: &Resources,
+    );
     fn intersect(
         &self,
-        context: &Context,
-        scene: &AccelerationStructure,
         ray: &Ray,
+        scene: &TopLevelAccelerationStructure,
+        resources: &Resources,
     ) -> Option<(u32, Intersection)>;
 }
 
-pub trait RayGenerationShader<Context> {
+pub trait RayGenerationShader {
     fn generate(
         &self,
-        ray_tracer: &dyn RayTracer<Context>,
-        context: &Context,
-        scene: &AccelerationStructure,
+        ray_tracer: &dyn RayTracer,
+        scene: &TopLevelAccelerationStructure,
+        resources: &Resources,
+        spp: u32,
+        max_depth: u32,
         width: u32,
         height: u32,
         x: u32,
@@ -26,11 +37,10 @@ pub trait RayGenerationShader<Context> {
     ) -> Color;
 }
 
-pub trait ClosestHitShader<Context> {
+pub trait ClosestHitShader {
     fn hit(
         &self,
-        ctx: &Context,
-        scene: &AccelerationStructure,
+        scene: &TopLevelAccelerationStructure,
         intersection: &Intersection,
         object_to_world: &Transform,
     );
