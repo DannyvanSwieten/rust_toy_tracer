@@ -37,6 +37,10 @@ impl Material for DiffuseMaterial {
     fn emit(&self, _: &Resources, _hit_record: &HitRecord) -> Option<Color> {
         None
     }
+
+    fn uid(&self) -> usize {
+        1
+    }
 }
 
 pub struct MirrorMaterial {
@@ -54,6 +58,10 @@ impl Material for MirrorMaterial {
             &hit_record.position(),
         );
         Bounce::new(&ray, &color, 1.0)
+    }
+
+    fn uid(&self) -> usize {
+        2
     }
 }
 
@@ -107,6 +115,10 @@ impl Material for TranslucentMaterial {
 
     fn emit(&self, resources: &Resources, _hit_record: &HitRecord) -> Option<Color> {
         None
+    }
+
+    fn uid(&self) -> usize {
+        3
     }
 }
 
@@ -176,5 +188,9 @@ impl Material for PBRMaterial {
 
     fn emit(&self, resources: &Resources, _hit_record: &HitRecord) -> Option<crate::types::Color> {
         None
+    }
+
+    fn uid(&self) -> usize {
+        4
     }
 }

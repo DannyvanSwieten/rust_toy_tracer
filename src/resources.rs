@@ -1,4 +1,4 @@
-use rand::rngs::adapter::ReseedingRng;
+use serde::{Deserialize, Serialize};
 
 use super::hittable::Hittable;
 use super::material::Material;

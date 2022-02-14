@@ -45,6 +45,8 @@ impl HitRecord {
 }
 
 pub trait Material {
+    fn uid(&self) -> usize;
+
     fn scatter(&self, resources: &Resources, _hit_record: &HitRecord) -> Bounce {
         Bounce::default()
     }

@@ -12,3 +12,4 @@ image = "*"
 rand = "*"
 crossbeam = "*"
 num_cpus = "*"
+serde = {version = "1.0", features = ["derive"]}

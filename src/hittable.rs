@@ -7,6 +7,7 @@ use super::vec::*;
 use std::time::Instant;
 
 pub trait Hittable {
+    fn uid(&self) -> usize;
     fn intersect(
         &self,
         object_to_world: &Transform,
@@ -92,6 +93,10 @@ impl Hittable for Sphere {
     fn bounding_box(&self) -> std::option::Option<BoundingBox> {
         let r = Position::from_values(&[self.radius, self.radius, self.radius]);
         Some(BoundingBox::new(self.position - r, self.position + r))
+    }
+
+    fn uid(&self) -> usize {
+        1
     }
 }
 
@@ -210,6 +215,10 @@ impl Hittable for TriangleMesh {
 
     fn bounding_box(&self) -> Option<BoundingBox> {
         Some(self.acceleration_structure.bounding_box())
+    }
+
+    fn uid(&self) -> usize {
+        2
     }
 }
 
@@ -331,6 +340,10 @@ impl Hittable for XYRect {
             Vec3::from_values(&[self.x0, self.y0, -0.0001]),
             Vec3::from_values(&[self.x1, self.y1, 0.0001]),
         ))
+    }
+
+    fn uid(&self) -> usize {
+        3
     }
 }
 pub struct XZRect {

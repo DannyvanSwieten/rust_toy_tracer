@@ -6,6 +6,7 @@ pub mod brdf;
 pub mod cpu_tracer;
 pub mod hittable;
 pub mod intersection;
+pub mod light;
 pub mod mat;
 pub mod material;
 pub mod materials;
@@ -139,6 +140,7 @@ impl RayGenerationShader for RayGenerator {
                     hit_record.front_facing =
                         dot(&hit_record.normal, &hit_record.ray_direction()) < 0.0;
                     let bounce = material.scatter(resources, &hit_record);
+                    coefficient *= bounce.color;
                     ray = bounce.ray;
                     hit_record.bounce = bounce;
                     results.push(hit_record);
@@ -146,7 +148,7 @@ impl RayGenerationShader for RayGenerator {
                     let d = 0.5 * ray.dir.y() + 1.;
                     let c = Color::from_values(&[1.0, 1.0, 1.0]) * (1.0 - d)
                         + Color::from_values(&[0.5, 0.7, 1.0]) * d;
-                    coefficient *= c;
+                    coefficient = c;
                     break;
                 }
 
@@ -253,5 +255,5 @@ fn main() {
     );
 
     let tracer = CPUTracer::new(RayGenerator { camera: camera });
-    tracer.trace(32, 16, width, height, &ac, &resources);
+    tracer.trace(128, 16, width, height, &ac, &resources);
 }

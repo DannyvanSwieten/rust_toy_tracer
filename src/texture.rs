@@ -2,6 +2,7 @@ use super::resources::Resources;
 use super::types::*;
 use super::vec::*;
 pub trait Texture {
+    fn uid(&self) -> usize;
     fn sample(&self, resources: &Resources, uv: &TextureCoordinate, position: &Position) -> Color;
 }
 
@@ -18,6 +19,10 @@ impl SolidColorTexture {
 impl Texture for SolidColorTexture {
     fn sample(&self, _resources: &Resources, _: &TextureCoordinate, _: &Position) -> Color {
         self.color
+    }
+
+    fn uid(&self) -> usize {
+        1
     }
 }
 
@@ -47,5 +52,9 @@ impl Texture for CheckerTexture {
         } else {
             resources.texture(self.even).sample(resources, uv, position)
         }
+    }
+
+    fn uid(&self) -> usize {
+        2
     }
 }
