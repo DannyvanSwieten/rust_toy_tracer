@@ -12,6 +12,7 @@ pub trait Hittable {
         &self,
         object_to_world: &Transform,
         ray: &Ray,
+        cull: bool,
         t_min: f32,
         t_max: f32,
     ) -> Option<Intersection>;
@@ -40,6 +41,7 @@ impl Hittable for Sphere {
         &self,
         object_to_world: &Transform,
         ray: &Ray,
+        cull: bool,
         t_min: f32,
         t_max: f32,
     ) -> Option<Intersection> {
@@ -52,7 +54,7 @@ impl Hittable for Sphere {
 
         let discr = half_b * half_b - a * c;
 
-        if discr < 0. {
+        if discr < 0.000001 {
             return None;
         }
 
@@ -65,12 +67,7 @@ impl Hittable for Sphere {
             }
         }
 
-        return Some(Intersection::new(
-            ray,
-            root,
-            0,
-            &Barycentrics::from_values(&[0., 0.]),
-        ));
+        return Some(Intersection::new(ray, root, 0, &Barycentrics::new()));
     }
 
     fn normal(&self, object_to_world: &Transform, intersection: &Intersection) -> Normal {
@@ -91,7 +88,7 @@ impl Hittable for Sphere {
     }
 
     fn bounding_box(&self) -> std::option::Option<BoundingBox> {
-        let r = Position::from_values(&[self.radius, self.radius, self.radius]);
+        let r = Position::from_values([self.radius, self.radius, self.radius]);
         Some(BoundingBox::new(self.position - r, self.position + r))
     }
 
@@ -113,6 +110,7 @@ impl Hittable for TriangleMesh {
         &self,
         object_to_world: &Transform,
         ray: &Ray,
+        cull: bool,
         t_min: f32,
         t_max: f32,
     ) -> Option<Intersection> {
@@ -133,14 +131,14 @@ impl Hittable for TriangleMesh {
                 let v2 = *object_to_world * &Vec4::from(self.positions[i2]);
 
                 if let Some((t, u, v)) =
-                    self.ray_triangle_intersect(ray, t_min, t_max, &v0, &v1, &v2)
+                    self.ray_triangle_intersect(ray, cull, t_min, t_max, &v0, &v1, &v2)
                 {
                     if t < closest {
                         intersection = Some(Intersection::new(
                             ray,
                             t,
                             index as u32,
-                            &Barycentrics::from_values(&[u, v]),
+                            &Barycentrics::from_values([u, v]),
                         ));
 
                         closest = t;
@@ -164,14 +162,14 @@ impl Hittable for TriangleMesh {
 
                 let mut closest = t_max;
                 if let Some((t, u, v)) =
-                    self.ray_triangle_intersect(ray, t_min, t_max, &v0, &v1, &v2)
+                    self.ray_triangle_intersect(ray, cull, t_min, t_max, &v0, &v1, &v2)
                 {
                     if t < closest {
                         intersection = Some(Intersection::new(
                             ray,
                             t,
                             i as u32,
-                            &Barycentrics::from_values(&[u, v]),
+                            &Barycentrics::from_values([u, v]),
                         ));
 
                         closest = t;
@@ -275,6 +273,7 @@ impl TriangleMesh {
     fn ray_triangle_intersect(
         &self,
         ray: &Ray,
+        cull: bool,
         _t_min: f32,
         _t_max: f32,
         v0: &Position,
@@ -286,8 +285,14 @@ impl TriangleMesh {
         let pvec = cross(ray.direction(), &v0v2);
         let det = dot(&v0v1, &pvec);
 
-        if det < 0.0000001 {
-            return None;
+        if cull {
+            if det < 0.000001 {
+                return None;
+            }
+        } else {
+            if det.abs() < 0.000001 {
+                return None;
+            }
         }
 
         let inv_det = 1. / det;
@@ -321,6 +326,7 @@ impl Hittable for XYRect {
         &self,
         object_to_world: &Transform,
         ray: &Ray,
+        cull: bool,
         t_min: f32,
         t_max: f32,
     ) -> Option<Intersection> {
@@ -328,17 +334,17 @@ impl Hittable for XYRect {
     }
 
     fn normal(&self, object_to_world: &Transform, intersection: &Intersection) -> Normal {
-        *object_to_world * &Vec4::from(Normal::from_values(&[0.0, 0.0, -1.0]))
+        *object_to_world * &Vec4::from(Normal::from_values([0.0, 0.0, -1.0]))
     }
 
     fn uv(&self, object_to_world: &Transform, intersection: &Intersection) -> TextureCoordinate {
-        Vec2::from_values(&[0.0, 0.0])
+        Vec2::from_values([0.0, 0.0])
     }
 
     fn bounding_box(&self) -> Option<BoundingBox> {
         Some(BoundingBox::new(
-            Vec3::from_values(&[self.x0, self.y0, -0.0001]),
-            Vec3::from_values(&[self.x1, self.y1, 0.0001]),
+            Vec3::from_values([self.x0, self.y0, -0.0001]),
+            Vec3::from_values([self.x1, self.y1, 0.0001]),
         ))
     }
 

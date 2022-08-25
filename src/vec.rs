@@ -1,6 +1,6 @@
 use super::types::*;
 
-#[derive(Copy, Clone)]
+#[derive(Copy, Clone, Debug)]
 #[repr(C)]
 pub struct Vector<const SIZE: usize> {
     pub data: [f32; SIZE],
@@ -42,12 +42,16 @@ impl<const SIZE: usize> Vector<SIZE> {
         Self { data: [0.; SIZE] }
     }
 
+    pub fn ones() -> Self {
+        Self::splat(1.0)
+    }
+
     pub fn splat(v: f32) -> Self {
         Self { data: [v; SIZE] }
     }
 
-    pub fn from_values(data: &[f32; SIZE]) -> Self {
-        Self { data: *data }
+    pub fn from_values(data: [f32; SIZE]) -> Self {
+        Self { data }
     }
 }
 
@@ -105,7 +109,7 @@ pub fn cross(lhs: &Vec3, rhs: &Vec3) -> Vec3 {
     let y = lhs.z() * rhs.x() - rhs.z() * lhs.x();
     let z = lhs.x() * rhs.y() - rhs.x() * lhs.y();
 
-    Vec3::from_values(&[x, y, z])
+    Vec3::from_values([x, y, z])
 }
 
 pub fn reflect(i: &Vec3, n: &Vec3) -> Vec3 {
@@ -116,9 +120,18 @@ pub fn reflect(i: &Vec3, n: &Vec3) -> Vec3 {
 pub fn refract(i: &Vec3, n: &Vec3, eta: f32) -> Vec3 {
     let cos_theta = dot(&n, &-i).min(1.0);
     let perpendicular = eta * (*i + cos_theta * n);
-    let l = (1.0 - length(&perpendicular)).abs().sqrt();
-    let parallel = -l * n;
+    let parallel = n * (-1.0 * (1.0 - length(&perpendicular)).abs().sqrt());
     perpendicular + parallel
+}
+
+pub fn refract_glsl(i: &Vec3, n: &Vec3, eta: f32) -> Vec3 {
+    let n_dot_i = dot(i, n);
+    let k = 1.0 - eta * eta * (1.0 - n_dot_i);
+    if k < 0.0 {
+        Vec3::new()
+    } else {
+        eta * i - (eta * n_dot_i + k.sqrt()) * n
+    }
 }
 
 pub trait XAccessor {
@@ -161,14 +174,54 @@ impl<const SIZE: usize> WAccessor for Vector<SIZE> {
     }
 }
 
+pub trait RAccessor {
+    fn r(&self) -> f32;
+}
+
+pub trait GAccessor {
+    fn g(&self) -> f32;
+}
+
+pub trait BAccessor {
+    fn b(&self) -> f32;
+}
+
+pub trait AAccessor {
+    fn a(&self) -> f32;
+}
+
+impl<const SIZE: usize> RAccessor for Vector<SIZE> {
+    fn r(&self) -> f32 {
+        self.data[0]
+    }
+}
+
+impl<const SIZE: usize> GAccessor for Vector<SIZE> {
+    fn g(&self) -> f32 {
+        self.data[1]
+    }
+}
+
+impl<const SIZE: usize> BAccessor for Vector<SIZE> {
+    fn b(&self) -> f32 {
+        self.data[2]
+    }
+}
+
+impl<const SIZE: usize> AAccessor for Vector<SIZE> {
+    fn a(&self) -> f32 {
+        self.data[3]
+    }
+}
+
 impl From<Vec3> for Vec4 {
     fn from(v: Vec3) -> Self {
-        Vec4::from_values(&[v.x(), v.y(), v.z(), 1.])
+        Vec4::from_values([v.x(), v.y(), v.z(), 1.])
     }
 }
 
 impl From<Vec4> for Vec3 {
     fn from(v: Vec4) -> Self {
-        Vec3::from_values(&[v.x(), v.y(), v.z()])
+        Vec3::from_values([v.x(), v.y(), v.z()])
     }
 }

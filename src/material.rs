@@ -6,17 +6,12 @@ use super::types::*;
 #[derive(Default)]
 pub struct Bounce {
     pub ray: Ray,
-    pub color: Color,
     pub pdf: f32,
 }
 
 impl Bounce {
-    pub fn new(ray: &Ray, color: &Color, pdf: f32) -> Self {
-        Self {
-            ray: *ray,
-            color: *color,
-            pdf,
-        }
+    pub fn new(ray: &Ray, pdf: f32) -> Self {
+        Self { ray: *ray, pdf }
     }
 }
 
@@ -28,6 +23,7 @@ pub struct HitRecord {
     pub front_facing: bool,
     pub instance_id: u32,
     pub bounce: Bounce,
+    pub direct_light: Color,
 }
 
 impl HitRecord {
@@ -47,11 +43,13 @@ impl HitRecord {
 pub trait Material {
     fn uid(&self) -> usize;
 
-    fn scatter(&self, resources: &Resources, _hit_record: &HitRecord) -> Bounce {
+    fn scatter(&self, _: &Resources, _hit_record: &HitRecord) -> Bounce {
         Bounce::default()
     }
 
-    fn emit(&self, resources: &Resources, _hit_record: &HitRecord) -> Option<Color> {
-        None
+    fn evaluate(&self, _: &Resources, _hit_record: &HitRecord) -> Color;
+
+    fn emit(&self, _: &Resources, _hit_record: &HitRecord) -> Color {
+        Color::new()
     }
 }

@@ -12,7 +12,7 @@ impl Ray {
         return Self {
             origin: *origin,
             dir: *direction,
-            inv_dir: Direction::from_values(&[1., 1., 1.]) / direction,
+            inv_dir: Direction::from_values([1., 1., 1.]) / direction,
         };
     }
 

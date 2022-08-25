@@ -39,7 +39,7 @@ impl std::ops::Mul<Vector<4>> for Matrix<3, 4> {
         let y = dot(&self.colums[1], &rhs);
         let z = dot(&self.colums[2], &rhs);
 
-        Vec3::from_values(&[x, y, z])
+        Vec3::from_values([x, y, z])
     }
 }
 
@@ -51,7 +51,7 @@ impl std::ops::Mul<&Vector<4>> for Matrix<3, 4> {
         let y = dot(&self.colums[1], &rhs);
         let z = dot(&self.colums[2], &rhs);
 
-        Vec3::from_values(&[x, y, z])
+        Vec3::from_values([x, y, z])
     }
 }
 
@@ -64,6 +64,6 @@ impl std::ops::Mul<Vector<3>> for Matrix<4, 3> {
         let z = dot(&self.colums[2], &rhs);
         let w = dot(&self.colums[3], &rhs);
 
-        Vec4::from_values(&[x, y, z, w])
+        Vec4::from_values([x, y, z, w])
     }
 }

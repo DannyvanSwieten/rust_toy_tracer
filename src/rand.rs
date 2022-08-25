@@ -19,11 +19,11 @@ pub fn float_range(min: f32, max: f32) -> f32 {
 }
 
 pub fn vec() -> Vec3 {
-    Vec3::from_values(&[float(), float(), float()])
+    Vec3::from_values([float(), float(), float()])
 }
 
 pub fn vec_range(min: f32, max: f32) -> Vec3 {
-    Vec3::from_values(&[
+    Vec3::from_values([
         float_range(min, max),
         float_range(min, max),
         float_range(min, max),
@@ -48,12 +48,12 @@ pub fn cosine() -> Direction {
     let phi = 2.0 * PI * r1;
     let x = phi.cos() * SQRT_2;
     let y = phi.sin() * SQRT_2;
-    Direction::from_values(&[x, y, z])
+    Direction::from_values([x, y, z])
 }
 
 pub fn disk() -> Direction {
     loop {
-        let p = Direction::from_values(&[float_range(-1.0, 1.0), float_range(-1.0, 1.0), 0.0]);
+        let p = Direction::from_values([float_range(-1.0, 1.0), float_range(-1.0, 1.0), 0.0]);
         if length(&p) >= 1.0 {
             continue;
         } else {

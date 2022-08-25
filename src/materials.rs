@@ -1,4 +1,11 @@
+use slotmap::DefaultKey;
+
+use crate::disney_brdf_sample::sample_disney_bsdf;
+use crate::disney_brdf_sample::sample_disney_micro_facet_anisotropic;
+use crate::types::Direction;
+
 use super::brdf::*;
+use super::disney_brdf_evaluate::*;
 use super::material::*;
 use super::onb::*;
 use super::rand;
@@ -8,46 +15,49 @@ use super::types::Color;
 use super::vec::*;
 use std::f32::consts::PI;
 pub struct DiffuseMaterial {
-    albedo: u32,
+    albedo: DefaultKey,
 }
 
 impl DiffuseMaterial {
-    pub fn new(albedo: u32) -> Self {
+    pub fn new(albedo: DefaultKey) -> Self {
         Self { albedo }
     }
 }
 
 impl Material for DiffuseMaterial {
-    fn scatter(&self, resources: &Resources, hit_record: &HitRecord) -> Bounce {
+    fn uid(&self) -> usize {
+        1
+    }
+
+    fn scatter(&self, _: &Resources, hit_record: &HitRecord) -> Bounce {
         let onb = OrthoNormalBasis::from_w(&hit_record.normal);
         let dir = onb.local(&rand::cosine());
         let cos_theta = saturate(dot(&dir, &hit_record.normal));
 
         let new_origin = hit_record.position() + hit_record.normal * 0.05;
         let ray = Ray::new(&new_origin, &dir);
-        let color = resources.texture(self.albedo).sample(
-            resources,
-            &hit_record.uv,
-            &hit_record.position(),
-        ) * cos_theta
-            / PI;
-        Bounce::new(&ray, &color, cos_theta / PI)
+        Bounce::new(&ray, cos_theta / PI)
     }
 
-    fn emit(&self, _: &Resources, _hit_record: &HitRecord) -> Option<Color> {
-        None
-    }
-
-    fn uid(&self) -> usize {
-        1
+    fn evaluate(&self, resources: &Resources, hit_record: &HitRecord) -> Color {
+        let cos_theta = saturate(dot(&hit_record.bounce.ray.direction(), &hit_record.normal));
+        resources
+            .texture(self.albedo)
+            .sample(resources, &hit_record.uv, &hit_record.position())
+            * cos_theta
+            / PI
     }
 }
 
 pub struct MirrorMaterial {
-    albedo: u32,
+    albedo: DefaultKey,
 }
 
 impl Material for MirrorMaterial {
+    fn uid(&self) -> usize {
+        2
+    }
+
     fn scatter(&self, resources: &Resources, hit_record: &HitRecord) -> Bounce {
         let new_origin = hit_record.position() + hit_record.normal * 0.05;
         let out_dir = reflect(&hit_record.ray_direction(), &hit_record.normal);
@@ -57,32 +67,38 @@ impl Material for MirrorMaterial {
             &hit_record.uv,
             &hit_record.position(),
         );
-        Bounce::new(&ray, &color, 1.0)
+        Bounce::new(&ray, 1.0)
     }
 
-    fn uid(&self) -> usize {
-        2
+    fn evaluate(&self, resources: &Resources, hit_record: &HitRecord) -> Color {
+        resources
+            .texture(self.albedo)
+            .sample(resources, &hit_record.uv, &hit_record.position())
     }
 }
 
 impl MirrorMaterial {
-    pub fn new(albedo: u32) -> Self {
+    pub fn new(albedo: DefaultKey) -> Self {
         Self { albedo }
     }
 }
 
 pub struct TranslucentMaterial {
-    albedo: u32,
+    albedo: DefaultKey,
     ior: f32,
 }
 
 impl TranslucentMaterial {
-    pub fn new(albedo: u32, ior: f32) -> Self {
+    pub fn new(albedo: DefaultKey, ior: f32) -> Self {
         Self { albedo, ior }
     }
 }
 
 impl Material for TranslucentMaterial {
+    fn uid(&self) -> usize {
+        3
+    }
+
     fn scatter(&self, resources: &Resources, hit_record: &HitRecord) -> Bounce {
         let ratio = if hit_record.front_facing {
             1.0 / self.ior
@@ -90,18 +106,18 @@ impl Material for TranslucentMaterial {
             self.ior
         };
 
-        let cos_theta = dot(&(-hit_record.ray_direction()), &hit_record.normal);
-        let sin_theta = (1.0 - cos_theta * cos_theta).sqrt();
+        let cos_theta = dot(&(-hit_record.ray_direction()), &hit_record.normal).min(1.0);
+        let sin_theta = (1.0 - cos_theta * cos_theta).max(0.0).sqrt();
 
         let cannot_refract = ratio * sin_theta > 1.0;
         let f = rand::float();
-        let wo = if cannot_refract || fresnel_schlick_refraction(cos_theta, ratio) > f {
+        let wo = if cannot_refract || fresnel_schlick_reflectance(cos_theta, ratio) > f {
             reflect(hit_record.ray_direction(), &hit_record.normal)
         } else {
-            refract(hit_record.ray_direction(), &hit_record.normal, ratio)
+            refract_glsl(hit_record.ray_direction(), &hit_record.normal, ratio)
         };
 
-        let new_origin = hit_record.position() + hit_record.normal * 0.05;
+        let new_origin = hit_record.position() + wo * 0.05;
 
         let ray = Ray::new(&new_origin, &wo);
         let color = resources.texture(self.albedo).sample(
@@ -110,87 +126,113 @@ impl Material for TranslucentMaterial {
             &hit_record.position(),
         );
 
-        Bounce::new(&ray, &color, 1.0)
+        Bounce::new(&ray, 1.0)
     }
 
-    fn emit(&self, resources: &Resources, _hit_record: &HitRecord) -> Option<Color> {
-        None
-    }
-
-    fn uid(&self) -> usize {
-        3
+    fn evaluate(&self, resources: &Resources, hit_record: &HitRecord) -> Color {
+        resources
+            .texture(self.albedo)
+            .sample(resources, &hit_record.uv, &hit_record.position())
     }
 }
 
 pub struct PBRMaterial {
-    pub roughness: u32,
-    pub metal: u32,
-    pub albedo: u32,
-    pub emission: u32,
-    diffuse_material: DiffuseMaterial,
+    pub albedo: DefaultKey,
+    pub roughness: DefaultKey,
+    pub metal: DefaultKey,
+    pub emission: DefaultKey,
+    pub anisotropy: f32,
 }
 
 impl PBRMaterial {
-    pub fn new() -> Self {
+    pub fn new(
+        albedo: DefaultKey,
+        roughness: DefaultKey,
+        metal: DefaultKey,
+        emission: DefaultKey,
+    ) -> Self {
         Self {
-            roughness: 0,
-            metal: 0,
-            albedo: 0,
-            emission: 0,
-            diffuse_material: DiffuseMaterial::new(0),
+            albedo,
+            roughness,
+            metal,
+            emission,
+            anisotropy: 0.0,
         }
     }
 }
 
 impl Material for PBRMaterial {
+    fn uid(&self) -> usize {
+        4
+    }
+
     fn scatter(&self, resources: &Resources, hit_record: &HitRecord) -> Bounce {
         let roughness = resources
             .texture(self.roughness)
             .sample(resources, &hit_record.uv, &hit_record.position())
             .x();
-        let albedo = resources.texture(self.albedo).sample(
+
+        let (x, y) = direction_of_anisotropicity(&hit_record.normal);
+
+        let (wi, pdf) = sample_disney_bsdf(
+            &-hit_record.ray_direction(),
+            &hit_record.normal,
+            &x,
+            &y,
+            roughness,
+            self.anisotropy,
+        );
+
+        let ray = Ray::new(&hit_record.position(), &wi);
+        Bounce::new(&ray, pdf)
+    }
+
+    fn evaluate(&self, resources: &Resources, hit_record: &HitRecord) -> Color {
+        let base_color = resources.texture(self.albedo).sample(
             resources,
             &hit_record.uv,
             &hit_record.position(),
         );
 
-        let roughness = 1.0;
+        let roughness = resources
+            .texture(self.roughness)
+            .sample(resources, &hit_record.uv, &hit_record.position())
+            .x()
+            .min(0.25);
 
-        if rand::float() < roughness {
-            let mut b = self.diffuse_material.scatter(resources, hit_record);
-            b.pdf /= roughness.max(0.000001);
-            b
-        } else {
-            // Create half-vector based on surface normal
-            let h = ggx_micro_facet_normal(roughness, &hit_record.normal);
+        let metal = resources
+            .texture(self.metal)
+            .sample(resources, &hit_record.uv, &hit_record.position())
+            .x();
+        let sheen = 0.0;
+        let sheen_tint = 0.0;
+        let clear_coat = 0.0;
+        let clear_coat_boost = 0.0;
+        let clear_coat_gloss = 0.0;
+        let sub_surface = 0.0;
 
-            // reflect incoming ray over half-vector
-            let l = reflect(hit_record.ray_direction(), &h);
-            let n_dot_v = saturate(dot(&hit_record.normal, &-hit_record.ray_direction()));
-            let n_dot_l = saturate(dot(&hit_record.normal, &l));
-            let n_dot_h = saturate(dot(&hit_record.normal, &h));
-            let l_dot_h = saturate(dot(&l, &h));
-
-            let d = ggx_normal_distribution(n_dot_h, roughness);
-            let g = schlick_masking_term(n_dot_l, n_dot_v, roughness);
-            let f = schlick_fresnel(&albedo, l_dot_h);
-
-            let ggx = d * g * f / ((4.0 * n_dot_l * n_dot_v) + 0.000001);
-            let pdf = d * n_dot_h / ((4.0 * l_dot_h) + 0.000001);
-
-            let p = hit_record.position();
-            let radiance = ggx;
-
-            let ray = Ray::new(&p, &l);
-            Bounce::new(&ray, &radiance, pdf * (1.0 - roughness.max(0.000001)))
-        }
+        let bounce = &hit_record.bounce;
+        let (x, y) = direction_of_anisotropicity(&hit_record.normal);
+        evaluate_disney_bsdf(
+            &bounce.ray.dir,
+            &-hit_record.ray_direction(),
+            &hit_record.normal,
+            &x,
+            &y,
+            &base_color,
+            roughness,
+            metal,
+            sheen,
+            sheen_tint,
+            clear_coat,
+            clear_coat_boost,
+            clear_coat_gloss,
+            self.anisotropy,
+            sub_surface,
+        )
     }
 
-    fn emit(&self, resources: &Resources, _hit_record: &HitRecord) -> Option<crate::types::Color> {
-        None
-    }
-
-    fn uid(&self) -> usize {
-        4
+    fn emit(&self, _: &Resources, _hit_record: &HitRecord) -> Color {
+        Color::new()
     }
 }

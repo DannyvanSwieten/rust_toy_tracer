@@ -7,9 +7,9 @@ pub struct OrthoNormalBasis {
 impl OrthoNormalBasis {
     pub fn from_w(w: &Direction) -> Self {
         let a = if w.x().abs() > 0.9 {
-            Direction::from_values(&[0.0, 1.0, 0.0])
+            Direction::from_values([0.0, 1.0, 0.0])
         } else {
-            Direction::from_values(&[1.0, 0.0, 0.0])
+            Direction::from_values([1.0, 0.0, 0.0])
         };
 
         let v = cross(w, &a);

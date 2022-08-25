@@ -1,3 +1,5 @@
+use slotmap::DefaultKey;
+
 use super::resources::Resources;
 use super::types::*;
 use super::vec::*;
@@ -27,13 +29,13 @@ impl Texture for SolidColorTexture {
 }
 
 pub struct CheckerTexture {
-    even: u32,
-    odd: u32,
+    even: DefaultKey,
+    odd: DefaultKey,
     frequency: f32,
 }
 
 impl CheckerTexture {
-    pub fn new(even: u32, odd: u32, frequency: f32) -> Self {
+    pub fn new(even: DefaultKey, odd: DefaultKey, frequency: f32) -> Self {
         Self {
             even: even,
             odd: odd,
@@ -56,5 +58,19 @@ impl Texture for CheckerTexture {
 
     fn uid(&self) -> usize {
         2
+    }
+}
+
+pub struct ImageTexture {
+    image_id: usize,
+}
+
+impl Texture for ImageTexture {
+    fn uid(&self) -> usize {
+        3
+    }
+
+    fn sample(&self, resources: &Resources, uv: &TextureCoordinate, position: &Position) -> Color {
+        Color::new()
     }
 }

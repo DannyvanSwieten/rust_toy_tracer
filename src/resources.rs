@@ -1,4 +1,5 @@
-use serde::{Deserialize, Serialize};
+use image::RgbaImage;
+use slotmap::{DefaultKey, SlotMap};
 
 use super::hittable::Hittable;
 use super::material::Material;
@@ -6,46 +7,51 @@ use super::texture::Texture;
 
 #[derive(Default)]
 pub struct Resources {
-    textures: Vec<Box<dyn Texture>>,
-    materials: Vec<Box<dyn Material>>,
-    hittables: Vec<Box<dyn Hittable>>,
+    images: SlotMap<DefaultKey, RgbaImage>,
+    textures: SlotMap<DefaultKey, Box<dyn Texture>>,
+    materials: SlotMap<DefaultKey, Box<dyn Material>>,
+    hittables: SlotMap<DefaultKey, Box<dyn Hittable>>,
 }
 
 impl Resources {
-    pub fn add_texture<T>(&mut self, t: T)
+    pub fn add_texture<T>(&mut self, t: T) -> DefaultKey
     where
         T: Texture + 'static,
     {
-        self.textures.push(Box::new(t))
+        self.textures.insert(Box::new(t))
     }
 
-    pub fn texture(&self, id: u32) -> &dyn Texture {
-        self.textures[id as usize].as_ref()
+    pub fn texture(&self, id: DefaultKey) -> &dyn Texture {
+        self.textures[id].as_ref()
     }
 
-    pub fn add_material<M>(&mut self, m: M)
+    pub fn add_material<M>(&mut self, m: M) -> DefaultKey
     where
         M: Material + 'static,
     {
-        self.materials.push(Box::new(m))
+        self.materials.insert(Box::new(m))
     }
 
-    pub fn material(&self, id: usize) -> &dyn Material {
+    pub fn add_image(&mut self, image: RgbaImage) -> DefaultKey {
+        self.images.insert(image)
+    }
+
+    pub fn material(&self, id: DefaultKey) -> &dyn Material {
         self.materials[id].as_ref()
     }
 
-    pub fn add_hittable<H>(&mut self, h: H)
+    pub fn add_hittable<H>(&mut self, h: H) -> DefaultKey
     where
         H: Hittable + 'static,
     {
-        self.hittables.push(Box::new(h))
+        self.hittables.insert(Box::new(h))
     }
 
-    pub fn hittables(&self) -> &Vec<Box<dyn Hittable>> {
+    pub fn hittables(&self) -> &SlotMap<DefaultKey, Box<dyn Hittable>> {
         &self.hittables
     }
 
-    pub fn hittable(&self, id: usize) -> &dyn Hittable {
+    pub fn hittable(&self, id: DefaultKey) -> &dyn Hittable {
         self.hittables[id].as_ref()
     }
 }

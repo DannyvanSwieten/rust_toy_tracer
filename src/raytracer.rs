@@ -1,3 +1,7 @@
+use crate::camera::Camera;
+use crate::light::Light;
+use crate::light::Lights;
+
 use super::acceleration_structure::*;
 use super::intersection::*;
 use super::ray::*;
@@ -12,6 +16,7 @@ pub trait RayTracer {
         width: u32,
         height: u32,
         scene: &TopLevelAccelerationStructure,
+        lights: &Lights,
         resources: &Resources,
     );
     fn intersect(
@@ -27,6 +32,7 @@ pub trait RayGenerationShader {
         &self,
         ray_tracer: &dyn RayTracer,
         scene: &TopLevelAccelerationStructure,
+        lights: &Lights,
         resources: &Resources,
         spp: u32,
         max_depth: u32,

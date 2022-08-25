@@ -1,3 +1,6 @@
+use slotmap::DefaultKey;
+use slotmap::SlotMap;
+
 use super::bounding_box::*;
 use super::hittable::*;
 use super::rand::*;
@@ -56,8 +59,8 @@ impl Node for Leaf {
 impl Branch {
     fn new(instances: &mut Vec<(u32, BoundingBox)>) -> Box<dyn Node> {
         let mut bounding_box = BoundingBox::new(
-            Position::from_values(&[0., 0., 0.]),
-            Position::from_values(&[0., 0., 0.]),
+            Position::from_values([0., 0., 0.]),
+            Position::from_values([0., 0., 0.]),
         );
         for (_, bb) in instances.iter() {
             bounding_box = BoundingBox::surrounding_box(&bounding_box, &bb);
@@ -79,8 +82,8 @@ impl Branch {
 
     fn from_slice(slice: &mut [(u32, BoundingBox)]) -> Box<dyn Node> {
         let mut bounding_box = BoundingBox::new(
-            Position::from_values(&[0., 0., 0.]),
-            Position::from_values(&[0., 0., 0.]),
+            Position::from_values([0., 0., 0.]),
+            Position::from_values([0., 0., 0.]),
         );
         for (_, bb) in slice.iter() {
             bounding_box = BoundingBox::surrounding_box(&bounding_box, &bb);
@@ -114,7 +117,10 @@ unsafe impl Send for TopLevelAccelerationStructure {}
 unsafe impl Sync for TopLevelAccelerationStructure {}
 
 impl TopLevelAccelerationStructure {
-    pub fn new(hittables: &Vec<Box<dyn Hittable>>, instances: &Vec<Instance>) -> Self {
+    pub fn new(
+        hittables: &SlotMap<DefaultKey, Box<dyn Hittable>>,
+        instances: &Vec<Instance>,
+    ) -> Self {
         let geometry = hittables.clone();
         let geometry_instances = instances.clone();
         let mut id_and_bb = Vec::new();
@@ -123,7 +129,7 @@ impl TopLevelAccelerationStructure {
         for instance in instances.iter() {
             id_and_bb.push((
                 instance.instance_id,
-                geometry[instance.geometry_index as usize]
+                geometry[instance.geometry_index]
                     .bounding_box()
                     .unwrap()
                     .transformed(&instance.transform),
@@ -133,8 +139,8 @@ impl TopLevelAccelerationStructure {
         // sort them on x-axis (arbitrary axis)
         id_and_bb.sort_by(|(_, bb), (_, bb2)| bb.min().x().partial_cmp(&bb2.max().x()).unwrap());
         let mut bounding_box = BoundingBox::new(
-            Position::from_values(&[0., 0., 0.]),
-            Position::from_values(&[0., 0., 0.]),
+            Position::from_values([0., 0., 0.]),
+            Position::from_values([0., 0., 0.]),
         );
 
         // calculate the bounding box of the entire structure.
@@ -374,8 +380,8 @@ impl BottomLevelAccelerationStructure {
         let total_node_count = leaf_count + branch_count;
         let mut primitive_bbs = vec![BoundingBox::default(); total_node_count];
         let mut total_bb = BoundingBox::new(
-            Position::from_values(&[f32::MAX, f32::MAX, f32::MAX]),
-            Position::from_values(&[f32::MIN, f32::MIN, f32::MIN]),
+            Position::from_values([f32::MAX, f32::MAX, f32::MAX]),
+            Position::from_values([f32::MIN, f32::MIN, f32::MIN]),
         );
         if let Some(indices) = &indices {
             for i in (0..indices.len()).step_by(3) {
@@ -415,7 +421,7 @@ impl BottomLevelAccelerationStructure {
             .map(|code| primitive_bbs[code.primitive_id as usize + branch_count])
             .collect();
 
-        for i in 0..branch_count {
+        for _ in 0..branch_count {
             b.insert(0, BoundingBox::default())
         }
 

@@ -107,15 +107,15 @@ mod vec_tests {
     #[test]
     fn test_abs() {
         let bb = BoundingBox::new(
-            Position::from_values(&[-5.0, -5.0, -5.0]),
-            Position::from_values(&[5.0, 5.0, 5.0]),
+            Position::from_values([-5.0, -5.0, -5.0]),
+            Position::from_values([5.0, 5.0, 5.0]),
         );
 
-        let p = Position::from_values(&[2.5, 2.5, 2.5]);
+        let p = Position::from_values([2.5, 2.5, 2.5]);
         let relative = bb.relative_position(&p);
         assert_eq!(relative.data[0], 0.75);
 
-        let p = Position::from_values(&[-2.5, -2.5, -2.5]);
+        let p = Position::from_values([-2.5, -2.5, -2.5]);
         let relative = bb.relative_position(&p);
         assert_eq!(relative.data[0], 0.25)
     }
