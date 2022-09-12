@@ -176,7 +176,7 @@ pub fn evaluate_disney_anisotropic_specular(
     } else {
         Vec3::from_values([1., 1., 1.])
     }; // normalize lum. to isolate hue+sat
-    let specular = 1.0;
+    let specular = 0.0;
     let specular_tint = 0.0;
     let tint = mix_vec3(&Vec3::from_values([1., 1., 1.]), &ctint, specular_tint);
     let cspec0 = mix_vec3(&(specular * 0.08 * tint), base_color, metal);
@@ -194,6 +194,8 @@ pub fn evaluate_disney_anisotropic_specular(
 
     return gs * fs * ds;
 }
+
+pub fn evaluate_disney_isotropic_specular() {}
 
 pub fn evaluate_disney_micro_facet_anisotropic(
     wi: &Direction,
@@ -283,5 +285,6 @@ pub fn evaluate_disney_bsdf(
 
     let kd = mix_vec3(&diffuse_brdf, &sub_surface_brdf, sub_surface) + sheen_brdf;
     let kd = kd * (1.0 - metal);
-    (kd + gloss_brdf + clear_coat_brdf) * dot(normal, wi).max(0.001)
+    let theta = dot(normal, wi).max(0.001);
+    (kd) // + gloss_brdf + clear_coat_brdf) * theta
 }

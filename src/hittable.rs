@@ -71,15 +71,8 @@ impl Hittable for Sphere {
     }
 
     fn normal(&self, object_to_world: &Transform, intersection: &Intersection) -> Normal {
-        let r = object_to_world.colums[0][0] * self.radius;
-        let n = (intersection.ray.at(intersection.t)
-            - (*object_to_world * Vec4::from(self.position)))
-            / r;
-        let n = if dot(&n, &intersection.ray.direction()) < 0. {
-            n
-        } else {
-            -n
-        };
+        let n =
+            intersection.ray.at(intersection.t) - (*object_to_world * Vec4::from(self.position));
         normalize(&n)
     }
 

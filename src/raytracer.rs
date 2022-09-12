@@ -24,6 +24,8 @@ pub trait RayTracer {
         ray: &Ray,
         scene: &TopLevelAccelerationStructure,
         resources: &Resources,
+        t_min: f32,
+        t_max: f32,
     ) -> Option<(u32, Intersection)>;
 }
 

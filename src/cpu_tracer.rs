@@ -68,8 +68,10 @@ impl RayTracer for CPUTracer {
         ray: &Ray,
         scene: &TopLevelAccelerationStructure,
         resources: &Resources,
+        t_min: f32,
+        t_max: f32,
     ) -> Option<(u32, Intersection)> {
-        let results = scene.intersect_instance(ray, 0.01, 1000.);
+        let results = scene.intersect_instance(ray, t_min, t_max);
         if results.len() > 0 {
             let mut closest = None;
             let mut t: f32 = 1001.;
@@ -79,10 +81,10 @@ impl RayTracer for CPUTracer {
                     &instance.transform,
                     ray,
                     instance.cull,
-                    0.01,
-                    1000.,
+                    t_min,
+                    t_max,
                 ) {
-                    if intersection.t < t {
+                    if intersection.t >= t_min && intersection.t < t_max && intersection.t < t {
                         t = intersection.t;
                         closest = Some((instance.instance_id, intersection));
                     }

@@ -90,65 +90,90 @@ fn main() {
     let sphere = resources.add_hittable(Sphere::new(1.0, &Position::default()));
     let teapot = resources.add_hittable(TriangleMesh::new(positions, normals, tex_coords, indices));
 
-    let brown_texture = resources.add_texture(SolidColorTexture::new(&Color::from_values([
-        1.0, 0.3, 0.25,
+    let grey_texture = resources.add_texture(SolidColorTexture::new(&Color::from_values([
+        0.05, 0.3, 0.25,
     ])));
-    let white_texture = resources.add_texture(SolidColorTexture::new(&Color::ones()));
+    let white_texture = resources.add_texture(SolidColorTexture::new(&Color::splat(1.0)));
     let black_texture = resources.add_texture(SolidColorTexture::new(&Color::new()));
     let checker_texture =
         resources.add_texture(CheckerTexture::new(white_texture, black_texture, 3.0));
 
-    let sphere_material = resources.add_material(DiffuseMaterial::new(checker_texture));
+    let purple_texture =
+        resources.add_texture(SolidColorTexture::new(&Color::from_values([0.4, 0.1, 0.4])));
+
     let pbr = resources.add_material(PBRMaterial::new(
+        checker_texture,
+        grey_texture,
+        black_texture,
+        black_texture,
+        1.0,
+        0.0,
+        0.5,
+    ));
+
+    let pbr2 = resources.add_material(PBRMaterial::new(
+        purple_texture,
+        grey_texture,
+        black_texture,
+        black_texture,
+        1.1,
+        1.0,
+        0.5,
+    ));
+
+    let pbr3 = resources.add_material(PBRMaterial::new(
+        white_texture,
         white_texture,
         black_texture,
         black_texture,
-        black_texture,
+        1.5,
+        0.0,
+        0.5,
     ));
 
     let mut instances = Vec::new();
     // Floor
     instances.push(
-        Instance::new(sphere, 0, sphere_material, true)
+        Instance::new(sphere, 0, pbr, true)
             .with_position(0., -100., 0.)
             .with_scale(100., 100., 100.),
     );
 
     instances.push(
-        Instance::new(sphere, 1, pbr, true)
-            .with_position(0., 1.5, 2.)
-            .with_uniform_scale(2.),
+        Instance::new(teapot, 1, pbr2, false)
+            .with_position(0.0, -2., 0.)
+            .with_uniform_scale(50.),
     );
 
-    // instances.push(
-    //     Instance::new(sphere, 2, pbr2, true)
-    //         .with_position(-5., 1.5, 2.)
-    //         .with_uniform_scale(2.),
-    // );
+    instances.push(
+        Instance::new(teapot, 2, pbr, true)
+            .with_position(5.0, -2., 4.)
+            .with_uniform_scale(50.),
+    );
 
-    // instances.push(
-    //     Instance::new(sphere, 3, pbr3, true)
-    //         .with_position(5., 1.5, 2.)
-    //         .with_uniform_scale(2.),
-    // );
+    instances.push(
+        Instance::new(teapot, 3, pbr3, true)
+            .with_position(-5.0, -2., -3.)
+            .with_uniform_scale(50.),
+    );
 
     let ac = TopLevelAccelerationStructure::new(&resources.hittables(), &instances);
-    let width = 320;
-    let height = 240;
-    let origin = &Position::from_values([3., 6., 20.]);
+    let width = 1920;
+    let height = 1080;
+    let origin = &Position::from_values([3., 4., 15.]);
     let look_at = &Direction::from_values([0., 3., 0.]);
     let camera = DefaultCamera::new(
         &origin,
         &look_at,
         width as f32 / height as f32,
         45.,
-        0.5,
+        0.15,
         distance(&look_at, &origin),
     );
 
     let mut lights = Lights::new();
-    // lights.add(DirectionalLight::new(Position::from_values([-5., 1., 1.])));
+    // lights.add(DirectionalLight::new(Position::from_values([-1., 1., 1.])));
 
     let tracer = CPUTracer::new(RayGenerator { camera });
-    tracer.trace(512, 4, width, height, &ac, &lights, &resources);
+    tracer.trace(1024, 32, width, height, &ac, &lights, &resources);
 }

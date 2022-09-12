@@ -10,9 +10,9 @@ use super::types::*;
 
 pub fn pdf_lambert(wi: &Direction, wo: &Direction, normal: &Direction) -> f32 {
     if same_hemisphere(wo, wi, normal) {
-        return dot(normal, wi).abs() / PI;
+        dot(normal, wi).abs() / PI
     } else {
-        return 0f32;
+        0f32
     }
 }
 
@@ -59,7 +59,7 @@ pub fn pdf_disney_micro_facet_anisotropic(
     let h_dot_y = dot(&wh, y);
     let n_dot_h = dot(normal, &wh);
 
-    let denom = h_dot_x * (h_dot_x / alpha_x_2) + h_dot_y * (h_dot_y / alpha_y_2) + pow2(n_dot_h);
+    let denom = h_dot_x * h_dot_x / alpha_x_2 + h_dot_y * h_dot_y / alpha_y_2 + pow2(n_dot_h);
     if denom == 0. {
         return 0f32;
     }
@@ -81,5 +81,6 @@ pub fn pdf_disney(
     let pdf_specular =
         pdf_disney_micro_facet_anisotropic(wi, wo, normal, x, y, roughness, anisotropy);
     let total = pdf_diffuse + pdf_specular;
-    total * 0.5
+    total * 0.5;
+    pdf_diffuse
 }

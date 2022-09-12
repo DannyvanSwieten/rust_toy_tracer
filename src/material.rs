@@ -1,17 +1,19 @@
 use super::intersection::*;
-use super::ray::Ray;
 use super::resources::Resources;
 use super::types::*;
 
 #[derive(Default)]
 pub struct Bounce {
-    pub ray: Ray,
-    pub pdf: f32,
+    pub wi: Direction,
+    pub color: Color,
 }
 
 impl Bounce {
-    pub fn new(ray: &Ray, pdf: f32) -> Self {
-        Self { ray: *ray, pdf }
+    pub fn new(wi: &Direction, color: &Color) -> Self {
+        Self {
+            wi: *wi,
+            color: *color,
+        }
     }
 }
 
@@ -43,11 +45,7 @@ impl HitRecord {
 pub trait Material {
     fn uid(&self) -> usize;
 
-    fn scatter(&self, _: &Resources, _hit_record: &HitRecord) -> Bounce {
-        Bounce::default()
-    }
-
-    fn evaluate(&self, _: &Resources, _hit_record: &HitRecord) -> Color;
+    fn evaluate(&self, _: &Resources, _hit_record: &HitRecord) -> Bounce;
 
     fn emit(&self, _: &Resources, _hit_record: &HitRecord) -> Color {
         Color::new()

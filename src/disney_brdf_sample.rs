@@ -83,11 +83,11 @@ pub fn sample_disney_bsdf(
     anisotropy: f32,
 ) -> (Direction, f32) {
     let r = rand::float();
-    let wi = if r < 0.5 {
-        sample_disney_diffuse(wo, normal)
-    } else {
-        sample_disney_micro_facet_anisotropic(wo, normal, x, y, roughness, anisotropy)
-    };
+    // let wi = if r < 0.5 {
+    let wi = sample_disney_diffuse(wo, normal);
+    // } else {
+    //     sample_disney_micro_facet_anisotropic(wo, normal, x, y, roughness, anisotropy)
+    // };
 
     (wi, pdf_disney(&wi, wo, normal, x, y, roughness, anisotropy))
 }

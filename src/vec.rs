@@ -126,7 +126,7 @@ pub fn refract(i: &Vec3, n: &Vec3, eta: f32) -> Vec3 {
 
 pub fn refract_glsl(i: &Vec3, n: &Vec3, eta: f32) -> Vec3 {
     let n_dot_i = dot(i, n);
-    let k = 1.0 - eta * eta * (1.0 - n_dot_i);
+    let k = 1.0 - eta * eta * (1.0 - n_dot_i * n_dot_i);
     if k < 0.0 {
         Vec3::new()
     } else {
